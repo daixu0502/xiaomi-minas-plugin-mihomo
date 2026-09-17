@@ -91,7 +91,7 @@ fi
 
 if [[ "$DIRECT_UNINSTALL" == "true" ]]; then
     if [[ ! "$PLUGIN_USER" =~ ^u[0-9]+$ ]]; then
-        echo "错误：插件用户应类似 u103868178。" >&2
+        echo "错误：插件用户应类似 u123456789。" >&2
         exit 2
     fi
     if [[ ! -f "$SCRIPT_DIR/remote-uninstall.sh" ]]; then
@@ -107,7 +107,7 @@ if [[ ! "$NAS_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
     exit 2
 fi
 if [[ ! "$PLUGIN_USER" =~ ^u[0-9]+$ ]]; then
-    echo "错误：插件用户应类似 u103868178。" >&2
+    echo "错误：插件用户应类似 u123456789。" >&2
     exit 2
 fi
 
