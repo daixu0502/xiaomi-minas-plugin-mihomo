@@ -34,7 +34,7 @@
 
 前提：
 
-1. 已运行此前的 SSH 开启与开机修复脚本。
+1. 已运行SSH开启脚本。(开机自启修复可在我的其他仓库找到)
 2. `ssh root@设备IP` 可以免密码密钥登录。
 3. 在 WSL/Linux 中有 `ssh`、`scp`、`curl` 或 `wget`、`tar`、`gzip`、`sha256sum`。
 
