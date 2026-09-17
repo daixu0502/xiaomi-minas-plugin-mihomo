@@ -3,7 +3,7 @@ set -eu
 
 PLUGIN_USER="${1:-u103868178}"
 PLUGIN_NAME="mihomo"
-PLUGIN_VERSION="1.5.0"
+PLUGIN_VERSION="1.6.1"
 CORE_VERSION="v1.19.31"
 BUNDLE_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 PAYLOAD_DIR="$BUNDLE_DIR/payload"
@@ -180,7 +180,7 @@ jq -n \
       desc:("Mihomo " + $core_version + " 代理管理"),
       developer:"Local / MetaCubeX",
       publisher:"Local",
-      changelog:"多用户安装选择、页面滑动与沉浸适配、局域网开关、规则 URL 导入和订阅节点列表",
+      changelog:"确认框与选择器统一使用兼容 Android、iOS 的小米风格网页 UI",
       system:false,
       size:$size,
       port:"9090",

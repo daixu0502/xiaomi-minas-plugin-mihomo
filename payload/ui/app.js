@@ -26,6 +26,206 @@
     toastTimer = setTimeout(function () { element.className = 'toast'; }, 2800);
   }
 
+  var pickerState = {
+    currentValue: '',
+    onSelect: null,
+    options: [],
+    trigger: null
+  };
+
+  function createSelectTrigger(value, label) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'mi-select-trigger';
+    button.setAttribute('aria-haspopup', 'listbox');
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('aria-label', label || '打开选择器');
+    button.appendChild(textElement('span', 'mi-select-value', value || '请选择'));
+    button.appendChild(textElement('span', 'mi-select-chevron', ''));
+    return button;
+  }
+
+  function setSelectTriggerValue(trigger, value) {
+    var label = trigger && trigger.querySelector('.mi-select-value');
+    if (label) label.textContent = value || '请选择';
+  }
+
+  function restoreFocus(element) {
+    if (!element || !document.documentElement.contains(element)) return;
+    var scrollX = window.pageXOffset;
+    var scrollY = window.pageYOffset;
+    try { element.focus({ preventScroll: true }); } catch (error) { element.focus(); }
+    if (window.pageXOffset !== scrollX || window.pageYOffset !== scrollY) window.scrollTo(scrollX, scrollY);
+  }
+
+  function closePicker() {
+    var sheet = byId('pickerSheet');
+    var backdrop = byId('pickerBackdrop');
+    sheet.hidden = true;
+    backdrop.hidden = true;
+    document.body.classList.remove('mi-picker-open');
+    if (pickerState.trigger) {
+      pickerState.trigger.setAttribute('aria-expanded', 'false');
+      restoreFocus(pickerState.trigger);
+    }
+    pickerState.currentValue = '';
+    pickerState.onSelect = null;
+    pickerState.options = [];
+    pickerState.trigger = null;
+  }
+
+  function renderPickerOptions(filterText) {
+    var container = byId('pickerOptions');
+    var query = String(filterText || '').trim().toLowerCase();
+    var options = pickerState.options.filter(function (option) {
+      return !query || option.text.toLowerCase().indexOf(query) >= 0;
+    });
+    container.textContent = '';
+    if (!options.length) {
+      container.appendChild(textElement('div', 'mi-picker-empty', '没有匹配的选项'));
+      return;
+    }
+    options.forEach(function (option) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'mi-picker-option' + (option.value === pickerState.currentValue ? ' selected' : '');
+      button.setAttribute('role', 'option');
+      button.setAttribute('aria-selected', option.value === pickerState.currentValue ? 'true' : 'false');
+      button.appendChild(textElement('span', 'mi-picker-option-label', option.text));
+      button.appendChild(textElement('span', 'mi-picker-option-check', '✓'));
+      button.addEventListener('click', function () {
+        var callback = pickerState.onSelect;
+        closePicker();
+        if (callback) callback(option.value, option.text);
+      });
+      container.appendChild(button);
+    });
+  }
+
+  function openPicker(title, options, currentValue, onSelect, trigger) {
+    pickerState.options = (options || []).map(function (option) {
+      if (typeof option === 'string') return { value: option, text: option };
+      return { value: String(option.value), text: String(option.text) };
+    });
+    pickerState.currentValue = String(currentValue == null ? '' : currentValue);
+    pickerState.onSelect = onSelect;
+    pickerState.trigger = trigger || null;
+    byId('pickerTitle').textContent = title || '选择项目';
+    byId('pickerSearch').value = '';
+    byId('pickerSearchWrap').hidden = pickerState.options.length <= 8;
+    renderPickerOptions('');
+    byId('pickerBackdrop').hidden = false;
+    byId('pickerSheet').hidden = false;
+    document.body.classList.add('mi-picker-open');
+    if (trigger) trigger.setAttribute('aria-expanded', 'true');
+  }
+
+  function enhanceSelect(select) {
+    if (!select || select.dataset.miPicker === 'true') return;
+    select.dataset.miPicker = 'true';
+    var selected = select.options[select.selectedIndex];
+    var externalLabel = select.id ? document.querySelector('label[for="' + select.id + '"]') : null;
+    var wrappingLabel = select.closest('label');
+    var title = select.getAttribute('aria-label') ||
+      (externalLabel ? externalLabel.textContent.trim() : '') ||
+      (wrappingLabel && wrappingLabel.querySelector('span') ? wrappingLabel.querySelector('span').textContent.trim() : '') ||
+      '选择项目';
+    var trigger = createSelectTrigger(selected ? selected.textContent : '', title);
+    trigger.id = (select.id || 'select') + 'Picker';
+    if (select.classList.contains('policy-select')) trigger.classList.add('policy-picker-trigger');
+    select.classList.add('native-select-hidden');
+    select.disabled = true;
+    select.setAttribute('aria-hidden', 'true');
+    select.insertAdjacentElement('afterend', trigger);
+    if (externalLabel) externalLabel.setAttribute('for', trigger.id);
+
+    function sync() {
+      var option = select.options[select.selectedIndex];
+      setSelectTriggerValue(trigger, option ? option.textContent : '请选择');
+    }
+    select._miSync = sync;
+    trigger.addEventListener('click', function (event) {
+      event.preventDefault();
+      var options = Array.prototype.map.call(select.options, function (option) {
+        return { value: option.value, text: option.textContent };
+      });
+      openPicker(title, options, select.value, function (value) {
+        select.value = value;
+        sync();
+        var changeEvent = document.createEvent('HTMLEvents');
+        changeEvent.initEvent('change', true, false);
+        select.dispatchEvent(changeEvent);
+      }, trigger);
+    });
+    sync();
+  }
+
+  function initPickers() {
+    document.querySelectorAll('select').forEach(enhanceSelect);
+    byId('pickerBackdrop').addEventListener('click', closePicker);
+    byId('pickerClose').addEventListener('click', closePicker);
+    byId('pickerCancel').addEventListener('click', closePicker);
+    byId('pickerSearch').addEventListener('input', function () { renderPickerOptions(this.value); });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !byId('pickerSheet').hidden) closePicker();
+    });
+  }
+
+  var confirmState = {
+    resolve: null,
+    trigger: null
+  };
+
+  function closeConfirm(accepted) {
+    var dialog = byId('confirmDialog');
+    if (dialog.hidden) return;
+    var resolve = confirmState.resolve;
+    var trigger = confirmState.trigger;
+    dialog.hidden = true;
+    byId('confirmBackdrop').hidden = true;
+    document.body.classList.remove('mi-confirm-open');
+    confirmState.resolve = null;
+    confirmState.trigger = null;
+    restoreFocus(trigger);
+    if (resolve) resolve(Boolean(accepted));
+  }
+
+  function showConfirm(message, options) {
+    var settings = options || {};
+    if (confirmState.resolve) closeConfirm(false);
+    var dialog = byId('confirmDialog');
+    byId('confirmTitle').textContent = settings.title || '确认操作';
+    byId('confirmMessage').textContent = message || '是否继续？';
+    byId('confirmAccept').textContent = settings.confirmText || '继续';
+    byId('confirmCancel').textContent = settings.cancelText || '取消';
+    dialog.classList.toggle('danger', Boolean(settings.danger));
+    confirmState.trigger = document.activeElement;
+    byId('confirmBackdrop').hidden = false;
+    dialog.hidden = false;
+    document.body.classList.add('mi-confirm-open');
+    return new Promise(function (resolve) {
+      confirmState.resolve = resolve;
+      window.setTimeout(function () {
+        if (!dialog.hidden) restoreFocus(settings.danger ? byId('confirmCancel') : byId('confirmAccept'));
+      }, 0);
+    });
+  }
+
+  function initConfirmDialog() {
+    byId('confirmBackdrop').addEventListener('click', function () { closeConfirm(false); });
+    byId('confirmCancel').addEventListener('click', function () { closeConfirm(false); });
+    byId('confirmAccept').addEventListener('click', function () { closeConfirm(true); });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !byId('confirmDialog').hidden) closeConfirm(false);
+    });
+  }
+
+  function confirmAction(message, options, action) {
+    showConfirm(message, options).then(function (accepted) {
+      if (accepted) action();
+    });
+  }
+
   function request(action, options) {
     var settings = options || {};
     settings.cache = 'no-store';
@@ -198,7 +398,10 @@
       } else {
         byId('geoDataSummary').textContent = '尚未同时检测到 GeoIP.dat 和 GeoSite.dat。';
       }
-      if (data.policy && data.policy !== 'custom') byId('geoPolicy').value = data.policy;
+      if (data.policy && data.policy !== 'custom') {
+        byId('geoPolicy').value = data.policy;
+        if (byId('geoPolicy')._miSync) byId('geoPolicy')._miSync();
+      }
       if (showMessage) toast('Geo 数据状态已刷新');
       return data;
     }).catch(function (error) {
@@ -245,24 +448,23 @@
         title.appendChild(textElement('strong', '', item.name));
         title.appendChild(textElement('span', '', item.value.type || 'Selector'));
 
-        var select = document.createElement('select');
-        select.setAttribute('aria-label', item.name);
-        item.value.all.forEach(function (node) {
-          var option = document.createElement('option');
-          option.value = node;
-          option.textContent = node;
-          option.selected = node === item.value.now;
-          select.appendChild(option);
-        });
-        select.addEventListener('change', function () {
-          select.disabled = true;
-          postJson('select_proxy', { group: item.name, node: select.value })
-            .then(function () { toast(item.name + ' 已切换'); })
+        var currentNode = item.value.now || item.value.all[0] || '';
+        var trigger = createSelectTrigger(currentNode, '选择 ' + item.name + ' 节点');
+        trigger.addEventListener('click', function () {
+          openPicker('选择 ' + item.name, item.value.all, currentNode, function (node) {
+            trigger.disabled = true;
+            postJson('select_proxy', { group: item.name, node: node })
+            .then(function () {
+              currentNode = node;
+              setSelectTriggerValue(trigger, node);
+              toast(item.name + ' 已切换');
+            })
             .catch(function (error) { toast(error.message, true); loadProxies(); })
-            .finally(function () { select.disabled = false; });
+            .finally(function () { trigger.disabled = false; });
+          }, trigger);
         });
         row.appendChild(title);
-        row.appendChild(select);
+        row.appendChild(trigger);
         container.appendChild(row);
       });
     }).catch(function (error) {
@@ -363,16 +565,17 @@
         title.appendChild(textElement('span', '', String(node.type || 'unknown').toUpperCase()));
         var button = textElement('button', 'button danger compact', '删除');
         button.addEventListener('click', function () {
-          if (!window.confirm('确定删除手动节点“' + node.name + '”吗？')) return;
-          button.disabled = true;
-          postJson('manual_node_delete', { name: node.name }).then(function () {
-            toast('节点已删除');
-            loadManualNodes();
-            loadProviders();
-            loadProxies();
-          }).catch(function (error) {
-            toast(error.message, true);
-          }).finally(function () { button.disabled = false; });
+          confirmAction('确定删除手动节点“' + node.name + '”吗？', { title: '删除节点', confirmText: '删除', danger: true }, function () {
+            button.disabled = true;
+            postJson('manual_node_delete', { name: node.name }).then(function () {
+              toast('节点已删除');
+              loadManualNodes();
+              loadProviders();
+              loadProxies();
+            }).catch(function (error) {
+              toast(error.message, true);
+            }).finally(function () { button.disabled = false; });
+          });
         });
         row.appendChild(title);
         row.appendChild(button);
@@ -538,18 +741,19 @@
       var warning = accessMode === 'lan'
         ? '开放后局域网设备可连接 NAS 的 7890 端口。请确认局域网可信，是否继续？'
         : '切换后局域网设备将无法再使用此代理，是否继续？';
-      if (!window.confirm(warning)) return;
-      button.disabled = true;
-      postJson('network_access_set', { mode: accessMode }).then(function () {
-        state.configLoaded = false;
-        toast(accessMode === 'lan' ? '已开放局域网访问' : '已切换为仅本机访问');
-        loadNetworkAccess(false);
-        loadStatus(false);
-        loadDockerProxy(false);
-      }).catch(function (error) {
-        toast(error.message, true);
-        loadNetworkAccess(false);
-      }).finally(function () { button.disabled = false; });
+      confirmAction(warning, { title: accessMode === 'lan' ? '开放局域网访问' : '仅本机访问' }, function () {
+        button.disabled = true;
+        postJson('network_access_set', { mode: accessMode }).then(function () {
+          state.configLoaded = false;
+          toast(accessMode === 'lan' ? '已开放局域网访问' : '已切换为仅本机访问');
+          loadNetworkAccess(false);
+          loadStatus(false);
+          loadDockerProxy(false);
+        }).catch(function (error) {
+          toast(error.message, true);
+          loadNetworkAccess(false);
+        }).finally(function () { button.disabled = false; });
+      });
     });
   });
 
@@ -566,49 +770,52 @@
     }).finally(function () { button.disabled = false; });
   });
   byId('applyCoreUpdate').addEventListener('click', function () {
-    if (!window.confirm('将下载、校验并替换 Mihomo 内核；运行中的内核会自动重启。是否继续？')) return;
     var button = this;
-    button.disabled = true;
-    postJson('core_update_apply', {}).then(function (data) {
-      toast(data.updated ? '内核已更新至 ' + data.currentVersion : '当前已是最新稳定版');
-      return loadStatus(false);
-    }).then(function () {
-      return loadCoreUpdate(false);
-    }).catch(function (error) {
-      toast(error.message, true);
-      loadCoreUpdate(false);
-      loadStatus(false);
-    }).finally(function () { button.disabled = false; });
+    confirmAction('将下载、校验并替换 Mihomo 内核；运行中的内核会自动重启。是否继续？', { title: '更新 Mihomo 内核' }, function () {
+      button.disabled = true;
+      postJson('core_update_apply', {}).then(function (data) {
+        toast(data.updated ? '内核已更新至 ' + data.currentVersion : '当前已是最新稳定版');
+        return loadStatus(false);
+      }).then(function () {
+        return loadCoreUpdate(false);
+      }).catch(function (error) {
+        toast(error.message, true);
+        loadCoreUpdate(false);
+        loadStatus(false);
+      }).finally(function () { button.disabled = false; });
+    });
   });
   byId('updateGeoData').addEventListener('click', function () {
-    if (!window.confirm('将从官方仓库下载并校验 GeoIP、GeoSite；Mihomo 可能自动重启。是否继续？')) return;
     var button = this;
-    button.disabled = true;
-    postJson('geodata_update', {}).then(function () {
-      toast('GeoIP 和 GeoSite 已更新');
-      return loadGeoData(false);
-    }).then(function () {
-      loadStatus(false);
-    }).catch(function (error) {
-      toast(error.message, true);
-      loadGeoData(false);
-    }).finally(function () { button.disabled = false; });
+    confirmAction('将从官方仓库下载并校验 GeoIP、GeoSite；Mihomo 可能自动重启。是否继续？', { title: '更新 Geo 数据' }, function () {
+      button.disabled = true;
+      postJson('geodata_update', {}).then(function () {
+        toast('GeoIP 和 GeoSite 已更新');
+        return loadGeoData(false);
+      }).then(function () {
+        loadStatus(false);
+      }).catch(function (error) {
+        toast(error.message, true);
+        loadGeoData(false);
+      }).finally(function () { button.disabled = false; });
+    });
   });
   byId('applyGeoPolicy').addEventListener('click', function () {
     var policySelect = byId('geoPolicy');
     var policyName = policySelect.options[policySelect.selectedIndex].text;
-    if (!window.confirm('将备份配置并应用“' + policyName + '”，随后校验并重启 Mihomo。是否继续？')) return;
     var button = this;
-    button.disabled = true;
-    postJson('geodata_apply_policy', { policy: policySelect.value }).then(function () {
-      state.configLoaded = false;
-      toast('Geo 规则策略已应用');
-      loadGeoData(false);
-      loadStatus(false);
-      loadProxies();
-    }).catch(function (error) {
-      toast(error.message, true);
-    }).finally(function () { button.disabled = false; });
+    confirmAction('将备份配置并应用“' + policyName + '”，随后校验并重启 Mihomo。是否继续？', { title: '应用 Geo 策略' }, function () {
+      button.disabled = true;
+      postJson('geodata_apply_policy', { policy: policySelect.value }).then(function () {
+        state.configLoaded = false;
+        toast('Geo 规则策略已应用');
+        loadGeoData(false);
+        loadStatus(false);
+        loadProxies();
+      }).catch(function (error) {
+        toast(error.message, true);
+      }).finally(function () { button.disabled = false; });
+    });
   });
   byId('refreshDockerProxy').addEventListener('click', function () { loadDockerProxy(true); });
   byId('reloadProxies').addEventListener('click', function () { loadProxies(); loadProviders(); loadRuleProviders(); });
@@ -624,21 +831,22 @@
       toast('请输入有效的 HTTPS 订阅 URL', true);
       return;
     }
-    if (!window.confirm('首次导入会备份并替换当前 config.yaml，然后重启 Mihomo。是否继续？')) return;
     var button = this;
-    button.disabled = true;
-    postJson('subscription_import', { url: subscriptionUrl }).then(function (data) {
-      byId('subscriptionUrl').value = '';
-      state.configLoaded = false;
-      toast('订阅已导入，共 ' + (data.proxyCount || 0) + ' 个节点');
-      loadSubscription();
-      loadStatus(false);
-      loadProviders();
-      loadProxies();
-      loadRuleProviders();
-    }).catch(function (error) {
-      toast(error.message, true);
-    }).finally(function () { button.disabled = false; });
+    confirmAction('首次导入会备份并替换当前 config.yaml，然后重启 Mihomo。是否继续？', { title: '导入订阅' }, function () {
+      button.disabled = true;
+      postJson('subscription_import', { url: subscriptionUrl }).then(function (data) {
+        byId('subscriptionUrl').value = '';
+        state.configLoaded = false;
+        toast('订阅已导入，共 ' + (data.proxyCount || 0) + ' 个节点');
+        loadSubscription();
+        loadStatus(false);
+        loadProviders();
+        loadProxies();
+        loadRuleProviders();
+      }).catch(function (error) {
+        toast(error.message, true);
+      }).finally(function () { button.disabled = false; });
+    });
   });
 
   byId('updateSubscription').addEventListener('click', function () {
@@ -661,20 +869,21 @@
       toast('请输入单节点分享链接或 Clash JSON', true);
       return;
     }
-    if (!window.confirm('节点将写入本地 provider；必要时会备份并切换为受管配置，然后重启 Mihomo。是否继续？')) return;
     var button = this;
-    button.disabled = true;
-    postJson('manual_node_import', { node: nodeValue }).then(function (data) {
-      byId('manualNodeInput').value = '';
-      state.configLoaded = false;
-      toast((data.replaced ? '节点已更新：' : '节点已导入：') + (data.name || '未命名节点'));
-      loadManualNodes();
-      loadStatus(false);
-      loadProviders();
-      loadProxies();
-    }).catch(function (error) {
-      toast(error.message, true);
-    }).finally(function () { button.disabled = false; });
+    confirmAction('节点将写入本地 provider；必要时会备份并切换为受管配置，然后重启 Mihomo。是否继续？', { title: '导入节点' }, function () {
+      button.disabled = true;
+      postJson('manual_node_import', { node: nodeValue }).then(function (data) {
+        byId('manualNodeInput').value = '';
+        state.configLoaded = false;
+        toast((data.replaced ? '节点已更新：' : '节点已导入：') + (data.name || '未命名节点'));
+        loadManualNodes();
+        loadStatus(false);
+        loadProviders();
+        loadProxies();
+      }).catch(function (error) {
+        toast(error.message, true);
+      }).finally(function () { button.disabled = false; });
+    });
   });
 
   byId('importRuleProvider').addEventListener('click', function () {
@@ -688,25 +897,26 @@
       toast('请输入有效的 HTTPS 规则 URL', true);
       return;
     }
-    if (!window.confirm('将写入规则提供者并重启 Mihomo，是否继续？')) return;
     var button = this;
-    button.disabled = true;
-    postJson('rule_provider_import', {
-      name: name,
-      url: url,
-      behavior: byId('ruleProviderBehavior').value,
-      format: byId('ruleProviderFormat').value,
-      target: byId('ruleProviderTarget').value,
-      via: byId('ruleProviderVia').value
-    }).then(function () {
-      byId('ruleProviderUrl').value = '';
-      state.configLoaded = false;
-      toast('规则提供者已导入：' + name);
-      loadRuleProviders();
-      loadStatus(false);
-    }).catch(function (error) {
-      toast(error.message, true);
-    }).finally(function () { button.disabled = false; });
+    confirmAction('将写入规则提供者并重启 Mihomo，是否继续？', { title: '导入规则提供者' }, function () {
+      button.disabled = true;
+      postJson('rule_provider_import', {
+        name: name,
+        url: url,
+        behavior: byId('ruleProviderBehavior').value,
+        format: byId('ruleProviderFormat').value,
+        target: byId('ruleProviderTarget').value,
+        via: byId('ruleProviderVia').value
+      }).then(function () {
+        byId('ruleProviderUrl').value = '';
+        state.configLoaded = false;
+        toast('规则提供者已导入：' + name);
+        loadRuleProviders();
+        loadStatus(false);
+      }).catch(function (error) {
+        toast(error.message, true);
+      }).finally(function () { button.disabled = false; });
+    });
   });
 
   function runCoreAction(action, button, successMessage) {
@@ -735,65 +945,74 @@
     var warning = state.dockerProxyEnabled
       ? 'Docker 代理当前已启用；停止 Mihomo 后 Docker 拉取镜像将不可用。仍要停止吗？'
       : '确定停止 Mihomo 核心吗？';
-    if (!window.confirm(warning)) return;
-    runCoreAction('stop', this, 'Mihomo 已停止');
+    var button = this;
+    confirmAction(warning, { title: '停止 Mihomo', confirmText: '停止', danger: true }, function () {
+      runCoreAction('stop', button, 'Mihomo 已停止');
+    });
   });
 
   byId('restartButton').addEventListener('click', function () {
-    if (!window.confirm('确定重启 Mihomo 核心吗？')) return;
-    runCoreAction('restart', this, 'Mihomo 已重启');
+    var button = this;
+    confirmAction('确定重启 Mihomo 核心吗？', { title: '重启 Mihomo' }, function () {
+      runCoreAction('restart', button, 'Mihomo 已重启');
+    });
   });
 
   byId('enableDockerProxy').addEventListener('click', function () {
-    if (!window.confirm('启用后将重启 docker.service，运行中的容器可能短暂中断。是否继续？')) return;
     var button = this;
-    button.disabled = true;
-    postJson('docker_proxy_enable', {}).then(function () {
-      toast('Docker 代理已启用');
-      return loadDockerProxy(false);
-    }).catch(function (error) {
-      toast(error.message, true);
-      loadDockerProxy(false);
-    }).finally(function () { button.disabled = false; });
+    confirmAction('启用后将重启 docker.service，运行中的容器可能短暂中断。是否继续？', { title: '启用 Docker 代理' }, function () {
+      button.disabled = true;
+      postJson('docker_proxy_enable', {}).then(function () {
+        toast('Docker 代理已启用');
+        return loadDockerProxy(false);
+      }).catch(function (error) {
+        toast(error.message, true);
+        loadDockerProxy(false);
+      }).finally(function () { button.disabled = false; });
+    });
   });
 
   byId('disableDockerProxy').addEventListener('click', function () {
-    if (!window.confirm('关闭代理会重启 docker.service。是否继续？')) return;
     var button = this;
-    button.disabled = true;
-    postJson('docker_proxy_disable', {}).then(function () {
-      toast('Docker 代理已关闭');
-      return loadDockerProxy(false);
-    }).catch(function (error) {
-      toast(error.message, true);
-      loadDockerProxy(false);
-    }).finally(function () { button.disabled = false; });
+    confirmAction('关闭代理会重启 docker.service。是否继续？', { title: '关闭 Docker 代理', confirmText: '关闭', danger: true }, function () {
+      button.disabled = true;
+      postJson('docker_proxy_disable', {}).then(function () {
+        toast('Docker 代理已关闭');
+        return loadDockerProxy(false);
+      }).catch(function (error) {
+        toast(error.message, true);
+        loadDockerProxy(false);
+      }).finally(function () { button.disabled = false; });
+    });
   });
 
   byId('saveConfig').addEventListener('click', function () {
     var content = byId('configEditor').value;
     if (!content.trim()) { toast('配置不能为空', true); return; }
-    if (!window.confirm('将校验配置并重启 Mihomo，是否继续？')) return;
     var button = this;
-    button.disabled = true;
-    byId('configHint').textContent = '正在校验并重启…';
-    request('config_save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/yaml; charset=utf-8' },
-      body: content
-    }).then(function () {
-      byId('configHint').textContent = '保存成功 · 已重启';
-      toast('配置已生效');
-      loadStatus(false);
-      loadProxies();
-      loadProviders();
-      loadRuleProviders();
-    }).catch(function (error) {
-      byId('configHint').textContent = '保存失败';
-      toast(error.message, true);
-    }).finally(function () { button.disabled = false; });
+    confirmAction('将校验配置并重启 Mihomo，是否继续？', { title: '保存配置' }, function () {
+      button.disabled = true;
+      byId('configHint').textContent = '正在校验并重启…';
+      request('config_save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/yaml; charset=utf-8' },
+        body: content
+      }).then(function () {
+        byId('configHint').textContent = '保存成功 · 已重启';
+        toast('配置已生效');
+        loadStatus(false);
+        loadProxies();
+        loadProviders();
+        loadRuleProviders();
+      }).catch(function (error) {
+        byId('configHint').textContent = '保存失败';
+        toast(error.message, true);
+      }).finally(function () { button.disabled = false; });
+    });
   });
 
+  initPickers();
+  initConfirmDialog();
   loadStatus(false);
   loadProxies();
   loadProviders();

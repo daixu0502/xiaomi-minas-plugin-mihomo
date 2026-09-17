@@ -289,8 +289,36 @@
       </article>
     </section>
 
-    <footer id="pluginVersion">插件版本 1.5.0</footer>
+    <footer id="pluginVersion">插件版本 1.6.1</footer>
   </main>
+
+  <div id="pickerBackdrop" class="mi-picker-backdrop" hidden></div>
+  <section id="pickerSheet" class="mi-picker-sheet" role="dialog" aria-modal="true" aria-labelledby="pickerTitle" hidden>
+    <div class="mi-picker-handle" aria-hidden="true"></div>
+    <div class="mi-picker-header">
+      <div>
+        <span class="mi-picker-eyebrow">请选择</span>
+        <h2 id="pickerTitle">选择项目</h2>
+      </div>
+      <button id="pickerClose" class="mi-picker-close" type="button" aria-label="关闭选择器">×</button>
+    </div>
+    <div id="pickerSearchWrap" class="mi-picker-search-wrap" hidden>
+      <input id="pickerSearch" class="mi-picker-search" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="搜索选项">
+    </div>
+    <div id="pickerOptions" class="mi-picker-options" role="listbox"></div>
+    <div class="mi-picker-footer"><button id="pickerCancel" class="mi-picker-cancel" type="button">取消</button></div>
+  </section>
+
+  <div id="confirmBackdrop" class="mi-confirm-backdrop" hidden></div>
+  <section id="confirmDialog" class="mi-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage" hidden>
+    <div class="mi-confirm-icon" aria-hidden="true">!</div>
+    <h2 id="confirmTitle">确认操作</h2>
+    <p id="confirmMessage"></p>
+    <div class="mi-confirm-actions">
+      <button id="confirmCancel" class="mi-confirm-button cancel" type="button">取消</button>
+      <button id="confirmAccept" class="mi-confirm-button accept" type="button">继续</button>
+    </div>
+  </section>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="app.js"></script>
