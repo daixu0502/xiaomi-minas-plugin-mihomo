@@ -1,0 +1,21 @@
+# Mihomo plugin safe default configuration.
+# It only serves this NAS on loopback until you explicitly change allow-lan
+# and bind-address. TUN and routing changes are intentionally disabled.
+mixed-port: 7890
+allow-lan: false
+bind-address: 127.0.0.1
+mode: rule
+log-level: info
+ipv6: false
+
+proxies: []
+
+proxy-groups:
+  - name: PROXY
+    type: select
+    proxies:
+      - DIRECT
+
+rules:
+  - MATCH,DIRECT
+

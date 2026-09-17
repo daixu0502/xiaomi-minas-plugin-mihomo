@@ -1,0 +1,17 @@
+{
+  "title": "Mihomo",
+  "desc": "Mihomo 代理管理",
+  "icon": "/mihomo.icon",
+  "type": "url",
+  "permission": ["admin"],
+  "dev_type": [1, 2, 3, 4],
+  "url": [
+    {
+      "dev_type": [1, 2, 3, 4],
+      "url": "/index.html"
+    }
+  ],
+  "sortid": 18,
+  "widget": []
+}
+

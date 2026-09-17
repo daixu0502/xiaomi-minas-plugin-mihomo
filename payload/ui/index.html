@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f3f6f8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e1516" media="(prefers-color-scheme: dark)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Mihomo</title>
+  <link rel="icon" href="../../icon/mihomo.icon">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="brand-mark" aria-hidden="true">M</div>
+      <div class="hero-copy">
+        <div class="eyebrow">XIAOMI SMART STORAGE</div>
+        <h1>Mihomo</h1>
+        <p id="versionText">正在连接核心…</p>
+      </div>
+      <div id="statusPill" class="status-pill waiting"><span></span>检查中</div>
+    </header>
+
+    <nav class="tabs" aria-label="页面导航">
+      <button class="tab active" data-page="overview">概览</button>
+      <button class="tab" data-page="proxies">策略</button>
+      <button class="tab" data-page="subscription">订阅</button>
+      <button class="tab" data-page="config">配置</button>
+      <button class="tab" data-page="logs">日志</button>
+    </nav>
+
+    <section id="page-overview" class="page active">
+      <div class="metric-grid">
+        <article class="metric">
+          <span>运行模式</span>
+          <strong id="modeMetric">—</strong>
+        </article>
+        <article class="metric">
+          <span>混合端口</span>
+          <strong id="portMetric">—</strong>
+        </article>
+        <article class="metric">
+          <span>局域网访问</span>
+          <strong id="lanMetric">—</strong>
+        </article>
+      </div>
+
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>运行模式</h2>
+            <p>切换后立即生效，不会修改配置文件。</p>
+          </div>
+        </div>
+        <div id="modeSwitch" class="segmented" role="group" aria-label="运行模式">
+          <button data-mode="rule">规则</button>
+          <button data-mode="global">全局</button>
+          <button data-mode="direct">直连</button>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>代理访问范围</h2>
+            <p id="networkAccessSummary">正在读取访问范围…</p>
+          </div>
+        </div>
+        <div id="accessSwitch" class="segmented two" role="group" aria-label="代理访问范围">
+          <button data-access="local">仅本机访问</button>
+          <button data-access="lan">开放局域网</button>
+        </div>
+        <div class="notice warning network-notice">开放后局域网设备可访问 NAS 的 7890 端口。请确保局域网可信，并在客户端使用 NAS 的局域网 IP。</div>
+      </article>
+
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>核心控制</h2>
+            <p>控制端仅监听 127.0.0.1，密钥保存在设备上。</p>
+          </div>
+        </div>
+        <div class="button-row">
+          <button id="refreshButton" class="button secondary">刷新状态</button>
+          <button id="startButton" class="button primary">启动核心</button>
+          <button id="stopButton" class="button danger">停止核心</button>
+          <button id="restartButton" class="button danger">重启核心</button>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>Mihomo 内核更新</h2>
+            <p id="coreUpdateSummary">正在读取内核版本…</p>
+          </div>
+          <div id="coreUpdateBadge" class="mini-badge">检查中</div>
+        </div>
+        <div class="button-row">
+          <button id="checkCoreUpdate" class="button secondary">检查更新</button>
+          <button id="applyCoreUpdate" class="button primary">下载并更新</button>
+        </div>
+        <div class="privacy-note">只安装 MetaCubeX 官方 ARM64 Release，并校验官方 SHA-256；启动失败会自动恢复旧内核。</div>
+      </article>
+
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>Docker 守护进程代理</h2>
+            <p id="dockerProxySummary">正在读取 Docker 代理状态…</p>
+          </div>
+          <div id="dockerProxyBadge" class="mini-badge">检查中</div>
+        </div>
+        <div class="button-row">
+          <button id="enableDockerProxy" class="button primary">启用 Docker 代理</button>
+          <button id="disableDockerProxy" class="button danger">关闭 Docker 代理</button>
+          <button id="refreshDockerProxy" class="button secondary">刷新状态</button>
+        </div>
+        <div class="notice warning docker-notice">
+          用于 Docker 拉取镜像和构建；操作会重启 docker.service，运行中的容器可能短暂中断。不会自动修改容器内部的代理环境变量。
+        </div>
+      </article>
+    </section>
+
+    <section id="page-proxies" class="page">
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>Geo 数据与规则</h2>
+            <p id="geoDataSummary">正在读取 GeoIP 和 GeoSite 状态…</p>
+          </div>
+          <div id="geoDataBadge" class="mini-badge">检查中</div>
+        </div>
+        <label class="field-label" for="geoPolicy">规则策略</label>
+        <select id="geoPolicy" class="policy-select">
+          <option value="cn_direct">国内及局域网直连，其他走 PROXY</option>
+          <option value="lan_direct">仅局域网直连，其他走 PROXY</option>
+          <option value="direct">全部直连</option>
+        </select>
+        <div class="button-row geo-actions">
+          <button id="updateGeoData" class="button secondary">更新 GeoIP / GeoSite</button>
+          <button id="applyGeoPolicy" class="button primary">应用所选策略</button>
+        </div>
+        <div class="privacy-note">Geo 数据只通过本机 PROXY 从 MetaCubeX GitHub 官方仓库下载，并校验官方 SHA-256；不使用第三方镜像。应用策略失败会自动回滚。</div>
+      </article>
+
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>策略组</h2>
+            <p>选择各策略组当前使用的节点。</p>
+          </div>
+          <button id="reloadProxies" class="icon-button" aria-label="刷新策略">↻</button>
+        </div>
+        <div id="proxyGroups" class="stack empty-state">正在读取策略组…</div>
+      </article>
+
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>代理提供者</h2>
+            <p>手动更新配置中的 proxy-providers。</p>
+          </div>
+          <button id="updateAllProviders" class="button compact secondary">全部更新</button>
+        </div>
+        <div id="providers" class="stack empty-state">正在读取提供者…</div>
+      </article>
+
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>规则提供者</h2>
+            <p>更新配置中的 rule-providers 规则集。</p>
+          </div>
+          <button id="updateAllRuleProviders" class="button compact secondary">全部更新</button>
+        </div>
+        <div id="ruleProviders" class="stack empty-state">正在读取规则提供者…</div>
+      </article>
+    </section>
+
+    <section id="page-subscription" class="page">
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>订阅管理</h2>
+            <p>导入 Clash 格式订阅中的节点，并保存为本地代理提供者。</p>
+          </div>
+        </div>
+        <label class="field-label" for="subscriptionUrl">HTTPS 订阅 URL</label>
+        <input id="subscriptionUrl" class="url-input" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://example.com/subscription?token=…">
+        <div class="privacy-note">完整 URL 仅以 0600 权限保存在设备上；页面状态不会回显查询参数。</div>
+        <div class="button-row subscription-actions">
+          <button id="importSubscription" class="button primary">导入并启用</button>
+          <button id="updateSubscription" class="button secondary">更新已保存订阅</button>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>当前订阅</h2>
+            <p id="subscriptionSummary">正在读取…</p>
+          </div>
+          <div id="subscriptionBadge" class="mini-badge">检查中</div>
+        </div>
+        <div class="notice warning">
+          首次导入会生成安全的受管配置并备份现有 config.yaml；默认仍只监听本机，不开启 TUN。以后点击更新只替换节点文件。
+        </div>
+        <div id="subscriptionNodes" class="stack subscription-node-list empty-state">正在读取订阅节点…</div>
+      </article>
+
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>导入单条节点</h2>
+            <p>支持常见分享链接，也支持单个 Clash JSON 节点。</p>
+          </div>
+        </div>
+        <label class="field-label" for="manualNodeInput">节点分享链接或 JSON</label>
+        <textarea id="manualNodeInput" class="node-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="vmess://… / vless://… / trojan://… / ss://…"></textarea>
+        <div class="privacy-note">支持 ss、vmess、vless、trojan、hysteria2/hy2、tuic；凭据只保存在设备本地。</div>
+        <div class="button-row subscription-actions">
+          <button id="importManualNode" class="button primary">导入节点</button>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>手动节点</h2>
+            <p>导入后可到“策略”页的 PROXY 组中选择使用。</p>
+          </div>
+          <button id="reloadManualNodes" class="icon-button" aria-label="刷新手动节点">↻</button>
+        </div>
+        <div id="manualNodes" class="stack empty-state">正在读取手动节点…</div>
+      </article>
+
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>URL 导入规则提供者</h2>
+            <p>写入 rule-providers，并把 RULE-SET 规则放到最终 MATCH 之前。</p>
+          </div>
+        </div>
+        <div class="form-grid">
+          <label><span>名称</span><input id="ruleProviderName" class="url-input" type="text" maxlength="64" placeholder="例如 reject-list"></label>
+          <label class="wide"><span>HTTPS 规则 URL</span><input id="ruleProviderUrl" class="url-input" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://example.com/rules.yaml"></label>
+          <label><span>规则行为</span><select id="ruleProviderBehavior"><option value="classical">Classical</option><option value="domain">Domain</option><option value="ipcidr">IPCIDR</option></select></label>
+          <label><span>文件格式</span><select id="ruleProviderFormat"><option value="yaml">YAML</option><option value="mrs">MRS</option></select></label>
+          <label><span>匹配后动作</span><select id="ruleProviderTarget"><option value="PROXY">PROXY</option><option value="DIRECT">DIRECT</option><option value="REJECT">REJECT</option></select></label>
+          <label><span>下载通道</span><select id="ruleProviderVia"><option value="PROXY">PROXY</option><option value="DIRECT">DIRECT</option></select></label>
+        </div>
+        <div class="button-row geo-actions"><button id="importRuleProvider" class="button primary">导入规则提供者</button></div>
+        <div class="privacy-note">同名导入会更新原提供者；配置先校验再重启，失败自动恢复。</div>
+      </article>
+    </section>
+
+    <section id="page-config" class="page">
+      <article class="card editor-card">
+        <div class="card-heading">
+          <div>
+            <h2>config.yaml</h2>
+            <p>保存前自动校验；通过后重启核心。旧配置保留为 config.yaml.bak。</p>
+          </div>
+          <button id="loadConfig" class="icon-button" aria-label="重新载入配置">↻</button>
+        </div>
+        <textarea id="configEditor" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="正在读取配置…"></textarea>
+        <div class="editor-actions">
+          <span id="configHint">最大 2 MiB</span>
+          <button id="saveConfig" class="button primary">校验并保存</button>
+        </div>
+      </article>
+    </section>
+
+    <section id="page-logs" class="page">
+      <article class="card editor-card">
+        <div class="card-heading">
+          <div>
+            <h2>最近 200 行</h2>
+            <p>用于排查配置和启动问题。</p>
+          </div>
+          <button id="loadLogs" class="icon-button" aria-label="刷新日志">↻</button>
+        </div>
+        <pre id="logViewer">点击刷新读取日志。</pre>
+      </article>
+    </section>
+
+    <footer id="pluginVersion">插件版本 1.5.0</footer>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

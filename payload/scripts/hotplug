@@ -1,0 +1,15 @@
+#!/bin/sh
+
+CONTROL_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+
+# Network/pool hotplug events may occur repeatedly. start is idempotent.
+case "${ACTION:-${1:-}}" in
+    remove|down|stop)
+        exit 0
+        ;;
+    *)
+        sleep 3
+        "$CONTROL_DIR/control" enable
+        ;;
+esac
+

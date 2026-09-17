@@ -1,0 +1,40 @@
+#!/bin/sh
+
+CONTROL_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+PLUG_HOME_DIR=${PLUG_HOME_DIR:-$(dirname "$CONTROL_DIR")}
+PLUG_SRC_DIR=${PLUG_SRC_DIR:-$PLUG_HOME_DIR/src}
+RUNNER="$PLUG_SRC_DIR/files/mihomo.sh"
+
+log_info() {
+    logger -t plugin.mihomo -p user.info "mihomo.control: $*"
+}
+
+case "${1:-}" in
+    enable|start)
+        log_info "enable"
+        "$RUNNER" start
+        ;;
+    disable|stop)
+        log_info "disable"
+        "$RUNNER" stop
+        ;;
+    restart)
+        log_info "restart"
+        "$RUNNER" restart
+        ;;
+    status)
+        "$RUNNER" status
+        ;;
+    postinstall|postupgrade)
+        log_info "$1"
+        "$RUNNER" start
+        ;;
+    preuninstall|preupgrade)
+        log_info "$1"
+        "$RUNNER" stop
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+

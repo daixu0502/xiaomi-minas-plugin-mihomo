@@ -1,0 +1,103 @@
+#!/bin/sh
+set -eu
+
+DROPIN_DIR=/etc/systemd/system/docker.service.d
+DROPIN_FILE="$DROPIN_DIR/90-mihomo-proxy.conf"
+LOCK_FILE=/run/mihomo-docker-proxy.lock
+PROXY_URL=http://127.0.0.1:7890
+NO_PROXY_VALUE=localhost,127.0.0.1,::1,10.31.0.0/16
+
+json_error() {
+    jq -n --arg message "$1" '{ok:false,error:$message}'
+    exit 0
+}
+
+docker_available() {
+    systemctl show docker.service -p LoadState --value 2>/dev/null | grep -qx loaded
+}
+
+docker_active() {
+    systemctl is-active --quiet docker.service
+}
+
+proxy_enabled() {
+    [ -f "$DROPIN_FILE" ] \
+        && grep -Fq "Environment=\"HTTP_PROXY=$PROXY_URL\"" "$DROPIN_FILE" \
+        && grep -Fq "Environment=\"HTTPS_PROXY=$PROXY_URL\"" "$DROPIN_FILE"
+}
+
+mihomo_listening() {
+    ss -ltn 2>/dev/null | awk '$4 ~ /127\.0\.0\.1:7890$/ {found=1} END {exit !found}'
+}
+
+show_status() {
+    available=false
+    enabled=false
+    active=false
+    mihomo=false
+    docker_available && available=true
+    proxy_enabled && enabled=true
+    docker_active && active=true
+    mihomo_listening && mihomo=true
+    jq -n \
+        --argjson available "$available" \
+        --argjson enabled "$enabled" \
+        --argjson active "$active" \
+        --argjson mihomo "$mihomo" \
+        --arg proxy "$PROXY_URL" \
+        '{ok:true,available:$available,enabled:$enabled,dockerActive:$active,mihomoListening:$mihomo,proxy:$proxy}'
+}
+
+restart_docker() {
+    systemctl daemon-reload >/dev/null 2>&1 || return 1
+    systemctl restart docker.service >/dev/null 2>&1 || return 1
+    wait_count=0
+    while [ "$wait_count" -lt 20 ]; do
+        docker_active && return 0
+        sleep 1
+        wait_count=$((wait_count + 1))
+    done
+    return 1
+}
+
+enable_proxy() {
+    docker_available || json_error "设备上没有可用的 docker.service"
+    mihomo_listening || json_error "Mihomo 未监听 127.0.0.1:7890，请先启动核心"
+    mkdir -p "$DROPIN_DIR"
+    dropin_tmp="$DROPIN_DIR/.90-mihomo-proxy.conf.$$"
+    cat > "$dropin_tmp" <<EOF
+[Service]
+Environment="HTTP_PROXY=$PROXY_URL"
+Environment="HTTPS_PROXY=$PROXY_URL"
+Environment="NO_PROXY=$NO_PROXY_VALUE"
+EOF
+    chmod 0644 "$dropin_tmp"
+    mv -f "$dropin_tmp" "$DROPIN_FILE"
+    if ! restart_docker; then
+        rm -f "$DROPIN_FILE"
+        systemctl daemon-reload >/dev/null 2>&1 || true
+        systemctl restart docker.service >/dev/null 2>&1 || true
+        json_error "Docker 重启失败，已撤销代理配置"
+    fi
+    show_status
+}
+
+disable_proxy() {
+    docker_available || json_error "设备上没有可用的 docker.service"
+    if [ -e "$DROPIN_FILE" ]; then
+        rm -f "$DROPIN_FILE"
+        restart_docker || json_error "代理配置已删除，但 Docker 重启失败"
+    fi
+    show_status
+}
+
+[ "$(id -u)" = "0" ] || json_error "Docker 代理助手需要 root 权限"
+exec 9>"$LOCK_FILE"
+flock -x 9
+
+case "${1:-status}" in
+    status) show_status ;;
+    enable) enable_proxy ;;
+    disable) disable_proxy ;;
+    *) json_error "未知 Docker 代理操作" ;;
+esac
