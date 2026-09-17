@@ -12,7 +12,8 @@
     dockerProxyEnabled: false,
     coreUpdateAvailable: false,
     geoDataReady: false,
-    currentAccess: 'local'
+    currentAccess: 'local',
+    mixedPort: 7890
   };
   var toastTimer;
 
@@ -275,6 +276,7 @@
       var version = data.version && (data.version.version || data.version.meta);
       byId('versionText').textContent = version ? ('核心 ' + version) : (data.running ? '控制端正在准备' : '核心未运行');
       var configs = data.configs || {};
+      state.mixedPort = Number(configs['mixed-port']) || state.mixedPort;
       var mode = normalizeMode(configs.mode);
       byId('modeMetric').textContent = mode ? ({ rule: '规则', global: '全局', direct: '直连' }[mode] || mode) : '—';
       byId('portMetric').textContent = configs['mixed-port'] || '—';
@@ -303,7 +305,7 @@
       } else if (data.enabled) {
         badge.className = 'mini-badge ready';
         badge.textContent = data.dockerActive ? '已启用' : '服务异常';
-        summary.textContent = 'Docker 正在使用 ' + (data.proxy || '127.0.0.1:7890') + '。';
+        summary.textContent = 'Docker 正在使用 ' + (data.proxy || ('127.0.0.1:' + state.mixedPort)) + '。';
       } else {
         badge.className = 'mini-badge';
         badge.textContent = '未启用';
@@ -335,8 +337,9 @@
   function loadNetworkAccess(showMessage) {
     return request('network_access_status').then(function (data) {
       updateAccessButtons(data.mode);
+      state.mixedPort = Number(data.port) || state.mixedPort;
       byId('networkAccessSummary').textContent = data.mode === 'lan'
-        ? '已监听所有网卡，局域网设备可使用 NAS IP 和 7890 端口。'
+        ? '已监听所有网卡，局域网设备可使用 NAS IP 和 ' + state.mixedPort + ' 端口。'
         : '只监听 127.0.0.1，局域网设备无法连接。';
       if (showMessage) toast('访问范围已刷新');
       return data;
@@ -739,7 +742,7 @@
       var accessMode = button.dataset.access;
       if (accessMode === state.currentAccess) return;
       var warning = accessMode === 'lan'
-        ? '开放后局域网设备可连接 NAS 的 7890 端口。请确认局域网可信，是否继续？'
+        ? '开放后局域网设备可连接 NAS 的 ' + state.mixedPort + ' 端口。请确认局域网可信，是否继续？'
         : '切换后局域网设备将无法再使用此代理，是否继续？';
       confirmAction(warning, { title: accessMode === 'lan' ? '开放局域网访问' : '仅本机访问' }, function () {
         button.disabled = true;

@@ -184,7 +184,7 @@ if [[ "$DIRECT_INSTALL" == "true" ]]; then
     /bin/sh "$stage_dir/remote-install.sh" "$PLUGIN_USER"
     echo
     echo "安装完成。请刷新小米智能存储 APP，在插件列表中打开“Mihomo”。"
-    echo "本机代理默认监听 127.0.0.1:7890；未开启 TUN，也未对局域网开放。"
+    echo "本机代理使用安装器分配的用户专属端口；未开启 TUN，也未对局域网开放。"
     exit 0
 fi
 
@@ -220,4 +220,4 @@ REMOTE_WRAPPER
 
 echo
 echo "安装完成。请刷新小米智能存储 APP，在插件列表中打开“Mihomo”。"
-echo "本机代理默认监听 127.0.0.1:7890；未开启 TUN，也未对局域网开放。"
+echo "本机代理使用安装器分配的用户专属端口；未开启 TUN，也未对局域网开放。"

@@ -28,7 +28,12 @@ CONFIG_FILE="$ETC_DIR/config.yaml"
 SECRET_FILE="$ETC_DIR/api.secret"
 PID_FILE="$VAR_DIR/mihomo.pid"
 INFO_FILE="$PLUGIN_HOME/INFO"
-API_BASE="http://127.0.0.1:9090"
+PORTS_FILE="$ETC_DIR/ports.env"
+MIXED_PORT=$(sed -n 's/^MIXED_PORT=\([0-9][0-9]*\)$/\1/p' "$PORTS_FILE" 2>/dev/null | head -n 1)
+CONTROLLER_PORT=$(sed -n 's/^CONTROLLER_PORT=\([0-9][0-9]*\)$/\1/p' "$PORTS_FILE" 2>/dev/null | head -n 1)
+[ -n "$MIXED_PORT" ] || MIXED_PORT=7890
+[ -n "$CONTROLLER_PORT" ] || CONTROLLER_PORT=9090
+API_BASE="http://127.0.0.1:$CONTROLLER_PORT"
 
 json_header() {
     printf 'Content-Type: application/json; charset=utf-8\r\n'
@@ -272,7 +277,7 @@ case "$action" in
         ;;
     docker_proxy_status)
         [ -x "$DOCKER_PROXY_HELPER" ] || json_error "Docker 代理助手尚未安装"
-        response=$(sudo -n "$DOCKER_PROXY_HELPER" status 2>/dev/null) \
+        response=$(sudo -n "$DOCKER_PROXY_HELPER" status "$MIXED_PORT" 2>/dev/null) \
             || json_error "无法读取 Docker 代理状态"
         printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "Docker 代理状态返回异常"
         json_header
@@ -281,7 +286,7 @@ case "$action" in
     docker_proxy_enable)
         require_post
         [ -x "$DOCKER_PROXY_HELPER" ] || json_error "Docker 代理助手尚未安装"
-        response=$(sudo -n "$DOCKER_PROXY_HELPER" enable 2>/dev/null) \
+        response=$(sudo -n "$DOCKER_PROXY_HELPER" enable "$MIXED_PORT" 2>/dev/null) \
             || json_error "启用 Docker 代理失败"
         printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "Docker 代理操作返回异常"
         json_header
@@ -290,7 +295,7 @@ case "$action" in
     docker_proxy_disable)
         require_post
         [ -x "$DOCKER_PROXY_HELPER" ] || json_error "Docker 代理助手尚未安装"
-        response=$(sudo -n "$DOCKER_PROXY_HELPER" disable 2>/dev/null) \
+        response=$(sudo -n "$DOCKER_PROXY_HELPER" disable "$MIXED_PORT" 2>/dev/null) \
             || json_error "关闭 Docker 代理失败"
         printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "Docker 代理操作返回异常"
         json_header
@@ -402,6 +407,9 @@ case "$action" in
         test_log="$VAR_DIR/config-test.$$"
         trap 'rm -f "$config_tmp" "$test_log"' EXIT HUP INT TERM
         dd bs=1 count="$length" of="$config_tmp" 2>/dev/null
+        config_ports_tmp="$VAR_DIR/config.ports.$$"
+        awk -v port="$MIXED_PORT" 'BEGIN{seen=0} /^[[:space:]]*mixed-port:[[:space:]]*/{print "mixed-port: " port;seen=1;next}{print} END{if(!seen)print "mixed-port: " port}' "$config_tmp" > "$config_ports_tmp"
+        mv -f "$config_ports_tmp" "$config_tmp"
         chmod 0600 "$config_tmp"
         if ! "$BIN" -t -d "$ETC_DIR" -f "$config_tmp" > "$test_log" 2>&1; then
             error_text=$(tail -n 20 "$test_log" 2>/dev/null || echo "配置校验失败")

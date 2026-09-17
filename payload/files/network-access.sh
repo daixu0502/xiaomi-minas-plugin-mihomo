@@ -38,13 +38,14 @@ control_command() (
 do_status() {
     allow_lan=$(sed -n 's/^allow-lan:[[:space:]]*\([^#[:space:]]*\).*/\1/p' "$CONFIG_FILE" | head -n 1)
     bind_address=$(sed -n 's/^bind-address:[[:space:]]*\([^#[:space:]]*\).*/\1/p' "$CONFIG_FILE" | tr -d "\"'" | head -n 1)
+    mixed_port=$(sed -n 's/^mixed-port:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$CONFIG_FILE" | head -n 1)
     access_mode=local
     if [ "$allow_lan" = "true" ] && [ "$bind_address" != "127.0.0.1" ] && [ "$bind_address" != "localhost" ]; then
         access_mode=lan
     fi
-    jq -n --arg mode "$access_mode" --arg bindAddress "${bind_address:-127.0.0.1}" \
+    jq -n --arg mode "$access_mode" --arg bindAddress "${bind_address:-127.0.0.1}" --arg port "${mixed_port:-7890}" \
         --arg allowLan "${allow_lan:-false}" \
-        '{ok:true,mode:$mode,bindAddress:$bindAddress,allowLan:($allowLan == "true")}'
+        '{ok:true,mode:$mode,bindAddress:$bindAddress,allowLan:($allowLan == "true"),port:($port|tonumber)}'
 }
 
 do_set() {

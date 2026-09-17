@@ -12,6 +12,9 @@ VAR_DIR="$PLUGIN_HOME/var"
 BIN="$SCRIPT_DIR/mihomo"
 CONTROL="$PLUGIN_HOME/scripts/control"
 CONFIG_FILE="$ETC_DIR/config.yaml"
+PORTS_FILE="$ETC_DIR/ports.env"
+MIXED_PORT=$(sed -n 's/^MIXED_PORT=\([0-9][0-9]*\)$/\1/p' "$PORTS_FILE" 2>/dev/null | head -n 1)
+[ -n "$MIXED_PORT" ] || MIXED_PORT=7890
 META_FILE="$ETC_DIR/core-update.meta.json"
 API_URL="https://api.github.com/repos/MetaCubeX/mihomo/releases/latest"
 
@@ -53,7 +56,7 @@ download_https() {
         --proto '=https' --proto-redir '=https' \
         --connect-timeout 10 --max-time 180 --retry 2 \
         --user-agent "$user_agent" \
-        --proxy http://127.0.0.1:7890 \
+        --proxy "http://127.0.0.1:$MIXED_PORT" \
         --output "$download_target" -- "$download_url" >/dev/null 2>&1; then
         return 0
     fi

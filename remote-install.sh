@@ -3,7 +3,7 @@ set -eu
 
 PLUGIN_USER="${1:-u103868178}"
 PLUGIN_NAME="mihomo"
-PLUGIN_VERSION="1.6.1"
+PLUGIN_VERSION="1.7.0"
 CORE_VERSION="v1.19.31"
 BUNDLE_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 PAYLOAD_DIR="$BUNDLE_DIR/payload"
@@ -67,10 +67,12 @@ WEB_USER_DIR="$WEB_ROOT/$PLUGIN_USER"
 WEB_LINK="$WEB_USER_DIR/$PLUGIN_NAME"
 ICON_DIR="/data/plugin/www/icon"
 ICON_FILE="$ICON_DIR/$PLUGIN_NAME.icon"
-CRON_FILE="/etc/cron.d/mihomo-plugin"
+CRON_FILE="/etc/cron.d/mihomo-plugin-$PLUGIN_USER"
 LOCK_FILE="/data/plugin/.$PLUGIN_USER.mihomo.lock"
 DOCKER_HELPER="/data/plugin/.mihomo-system/mihomo-docker-proxy"
-DOCKER_SUDOERS="/etc/sudoers.d/mihomo-docker-proxy"
+DOCKER_SUDOERS="/etc/sudoers.d/mihomo-docker-proxy-$PLUGIN_USER"
+DOCKER_SUDOERS_LEGACY="/etc/sudoers.d/mihomo-docker-proxy"
+PORTS_FILE="$ETC_DIR/ports.env"
 
 [ -f "$LIST_FILE" ] || fail "未找到插件清单：$LIST_FILE"
 jq empty "$LIST_FILE" >/dev/null 2>&1 || fail "插件清单不是有效 JSON：$LIST_FILE"
@@ -146,7 +148,58 @@ if [ ! -s "$ETC_DIR/api.secret" ]; then
     umask 077
     openssl rand -hex 32 > "$ETC_DIR/api.secret"
 fi
-chmod 0600 "$ETC_DIR/config.yaml" "$ETC_DIR/api.secret"
+
+port_in_use() {
+    ss -lntH 2>/dev/null | awk -v suffix=":$1" '$4 ~ suffix "$" {found=1} END {exit !found}'
+}
+port_reserved() {
+    for reserved_file in /home/u*/plugin/mihomo/etc/ports.env; do
+        [ -f "$reserved_file" ] || continue
+        [ "$reserved_file" = "$PORTS_FILE" ] && continue
+        grep -Eq "^(MIXED_PORT|CONTROLLER_PORT)=$1$" "$reserved_file" && return 0
+    done
+    return 1
+}
+valid_port() {
+    case "$1" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$1" -ge 1024 ] && [ "$1" -le 65535 ]
+}
+MIXED_PORT=""
+CONTROLLER_PORT=""
+exec 8>/data/plugin/.mihomo-ports.lock
+flock -x 8
+if [ -s "$PORTS_FILE" ]; then
+    saved_mixed=$(sed -n 's/^MIXED_PORT=\([0-9][0-9]*\)$/\1/p' "$PORTS_FILE" | head -n 1)
+    saved_controller=$(sed -n 's/^CONTROLLER_PORT=\([0-9][0-9]*\)$/\1/p' "$PORTS_FILE" | head -n 1)
+    if valid_port "$saved_mixed" && valid_port "$saved_controller" && ! port_in_use "$saved_mixed" && ! port_in_use "$saved_controller" && ! port_reserved "$saved_mixed" && ! port_reserved "$saved_controller"; then
+        MIXED_PORT="$saved_mixed"
+        CONTROLLER_PORT="$saved_controller"
+    fi
+fi
+if [ -z "$MIXED_PORT" ]; then
+    config_mixed=$(sed -n 's/^[[:space:]]*mixed-port:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$ETC_DIR/config.yaml" | head -n 1)
+    if valid_port "$config_mixed" && ! port_in_use "$config_mixed" && ! port_in_use 9090 && ! port_reserved "$config_mixed" && ! port_reserved 9090; then
+        MIXED_PORT="$config_mixed"
+        CONTROLLER_PORT=9090
+    fi
+fi
+offset=0
+while [ -z "$MIXED_PORT" ] && [ "$offset" -lt 100 ]; do
+    candidate_mixed=$((7890+offset)); candidate_controller=$((9090+offset))
+    if ! port_in_use "$candidate_mixed" && ! port_in_use "$candidate_controller" && ! port_reserved "$candidate_mixed" && ! port_reserved "$candidate_controller"; then
+        MIXED_PORT="$candidate_mixed"; CONTROLLER_PORT="$candidate_controller"
+    fi
+    offset=$((offset+1))
+done
+[ -n "$MIXED_PORT" ] || fail "无法在 7890-7989 与 9090-9189 中分配 Mihomo 端口"
+ports_tmp="$ETC_DIR/.ports.env.$$"
+printf 'MIXED_PORT=%s\nCONTROLLER_PORT=%s\n' "$MIXED_PORT" "$CONTROLLER_PORT" > "$ports_tmp"
+mv -f "$ports_tmp" "$PORTS_FILE"
+flock -u 8
+config_tmp="$ETC_DIR/.config.ports.$$"
+awk -v port="$MIXED_PORT" 'BEGIN{seen=0} /^[[:space:]]*mixed-port:[[:space:]]*/{print "mixed-port: " port;seen=1;next}{print} END{if(!seen)print "mixed-port: " port}' "$ETC_DIR/config.yaml" > "$config_tmp"
+mv -f "$config_tmp" "$ETC_DIR/config.yaml"
+chmod 0600 "$ETC_DIR/config.yaml" "$ETC_DIR/api.secret" "$PORTS_FILE"
 
 rm -f "$PLUGIN_HOME/src" "$PLUGIN_HOME/tmp"
 ln -s "$SRC_DIR" "$PLUGIN_HOME/src"
@@ -167,6 +220,7 @@ jq -n \
     --arg plugin "$PLUGIN_NAME" \
     --arg version "$PLUGIN_VERSION" \
     --arg core_version "$INSTALLED_CORE_VERSION" \
+    --arg controller_port "$CONTROLLER_PORT" \
     --arg abstract "$abstract" \
     --argjson timestamp "$timestamp" \
     --argjson size "$plugin_size" \
@@ -180,10 +234,10 @@ jq -n \
       desc:("Mihomo " + $core_version + " 代理管理"),
       developer:"Local / MetaCubeX",
       publisher:"Local",
-      changelog:"确认框与选择器统一使用兼容 Android、iOS 的小米风格网页 UI",
+      changelog:"支持多用户安装，为每位用户自动分配独立代理端口与控制端口",
       system:false,
       size:$size,
-      port:"9090",
+      port:$controller_port,
       type:"standard",
       forceupgrade:false,
       ext:{admin:true},
@@ -239,7 +293,7 @@ if [ -n "$hotplug_root" ] && [ -d "$hotplug_root/net" ]; then
     ln -s "$SCRIPTS_DIR/hotplug" "$hotplug_link"
 fi
 
-cron_tmp="/etc/cron.d/.mihomo-plugin.$$"
+cron_tmp="/etc/cron.d/.mihomo-plugin-$PLUGIN_USER.$$"
 {
     echo 'SHELL=/bin/sh'
     echo 'PATH=/usr/sbin:/usr/bin:/sbin:/bin'
@@ -251,6 +305,9 @@ cron_tmp="/etc/cron.d/.mihomo-plugin.$$"
 } > "$cron_tmp"
 chmod 0644 "$cron_tmp"
 mv -f "$cron_tmp" "$CRON_FILE"
+if [ -f /etc/cron.d/mihomo-plugin ] && grep -Fq "boot.sh $PLUGIN_USER" /etc/cron.d/mihomo-plugin; then
+    rm -f /etc/cron.d/mihomo-plugin
+fi
 systemctl reload crond.service >/dev/null 2>&1 || true
 
 chown -R "$PLUGIN_USER:$PLUGIN_USER" "$PLUGIN_HOME" "$SRC_DIR" "$TMP_DIR"
@@ -266,13 +323,16 @@ docker_sudoers_tmp="$DOCKER_SUDOERS.new.$$"
 cp "$PAYLOAD_DIR/system/mihomo-docker-proxy" "$docker_helper_tmp"
 chown root:root "$docker_helper_tmp"
 chmod 0755 "$docker_helper_tmp"
-printf '%s ALL=(root) NOPASSWD: %s status, %s enable, %s disable\n' \
-    "$PLUGIN_USER" "$DOCKER_HELPER" "$DOCKER_HELPER" "$DOCKER_HELPER" > "$docker_sudoers_tmp"
+printf '%s ALL=(root) NOPASSWD: %s status %s, %s enable %s, %s disable %s\n' \
+    "$PLUGIN_USER" "$DOCKER_HELPER" "$MIXED_PORT" "$DOCKER_HELPER" "$MIXED_PORT" "$DOCKER_HELPER" "$MIXED_PORT" > "$docker_sudoers_tmp"
 chown root:root "$docker_sudoers_tmp"
 chmod 0440 "$docker_sudoers_tmp"
 visudo -cf "$docker_sudoers_tmp" >/dev/null 2>&1 || fail "Docker 代理 sudoers 规则校验失败"
 mv -f "$docker_helper_tmp" "$DOCKER_HELPER"
 mv -f "$docker_sudoers_tmp" "$DOCKER_SUDOERS"
+if [ -f "$DOCKER_SUDOERS_LEGACY" ] && grep -q "^$PLUGIN_USER[[:space:]]" "$DOCKER_SUDOERS_LEGACY"; then
+    rm -f "$DOCKER_SUDOERS_LEGACY"
+fi
 
 start_ok=0
 if runuser -u "$PLUGIN_USER" -- /usr/bin/env \
@@ -321,5 +381,6 @@ mv -f "$list_running" "$LIST_FILE"
 echo "Mihomo $INSTALLED_CORE_VERSION 已启动。"
 echo "APP 插件清单：$LIST_FILE"
 echo "配置文件：$ETC_DIR/config.yaml"
+echo "代理端口：$MIXED_PORT；控制端口：$CONTROLLER_PORT"
 echo "运行日志：$VAR_DIR/mihomo.log"
 echo "清单安装前备份：$backup_file"

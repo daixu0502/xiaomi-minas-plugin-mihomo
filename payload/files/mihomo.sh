@@ -16,8 +16,17 @@ ETC_DIR="$PLUGIN_HOME/etc"
 VAR_DIR="$PLUGIN_HOME/var"
 CONFIG_FILE="$ETC_DIR/config.yaml"
 SECRET_FILE="$ETC_DIR/api.secret"
+PORTS_FILE="$ETC_DIR/ports.env"
 PID_FILE="$VAR_DIR/mihomo.pid"
 LOG_FILE="$VAR_DIR/mihomo.log"
+MIXED_PORT=7890
+CONTROLLER_PORT=9090
+if [ -r "$PORTS_FILE" ]; then
+    saved_mixed=$(sed -n 's/^MIXED_PORT=\([0-9][0-9]*\)$/\1/p' "$PORTS_FILE" | head -n 1)
+    saved_controller=$(sed -n 's/^CONTROLLER_PORT=\([0-9][0-9]*\)$/\1/p' "$PORTS_FILE" | head -n 1)
+    [ -n "$saved_mixed" ] && MIXED_PORT="$saved_mixed"
+    [ -n "$saved_controller" ] && CONTROLLER_PORT="$saved_controller"
+fi
 
 log() {
     logger -t plugin.mihomo -p user.info "mihomo: $*"
@@ -31,7 +40,7 @@ is_managed_pid() {
     managed_cmdline=$(tr '\000' ' ' < "/proc/$managed_pid/cmdline" 2>/dev/null || true)
     managed_executable=${managed_cmdline%% *}
     case "$managed_executable" in
-        "$BIN"|"$PLUGIN_HOME/src/files/mihomo"|*/plugin/pluginsrc/mihomo/files/mihomo)
+        "$BIN"|"$PLUGIN_HOME/src/files/mihomo")
             return 0
             ;;
     esac
@@ -94,7 +103,7 @@ start_core() {
     nohup "$BIN" \
         -d "$ETC_DIR" \
         -f "$CONFIG_FILE" \
-        -ext-ctl "127.0.0.1:9090" \
+        -ext-ctl "127.0.0.1:$CONTROLLER_PORT" \
         -secret "$secret" \
         >> "$LOG_FILE" 2>&1 &
     pid=$!
@@ -110,7 +119,7 @@ start_core() {
         fi
         if curl --noproxy '*' -fsS --connect-timeout 1 --max-time 2 \
             -H "Authorization: Bearer $secret" \
-            "http://127.0.0.1:9090/version" >/dev/null 2>&1; then
+            "http://127.0.0.1:$CONTROLLER_PORT/version" >/dev/null 2>&1; then
             log "started, pid $pid"
             return 0
         fi

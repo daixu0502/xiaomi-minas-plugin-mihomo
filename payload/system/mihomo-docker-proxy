@@ -4,7 +4,11 @@ set -eu
 DROPIN_DIR=/etc/systemd/system/docker.service.d
 DROPIN_FILE="$DROPIN_DIR/90-mihomo-proxy.conf"
 LOCK_FILE=/run/mihomo-docker-proxy.lock
-PROXY_URL=http://127.0.0.1:7890
+ACTION=${1:-status}
+PROXY_PORT=${2:-}
+case "$PROXY_PORT" in ''|*[!0-9]*) PROXY_PORT=0 ;; esac
+[ "$PROXY_PORT" -ge 1024 ] 2>/dev/null && [ "$PROXY_PORT" -le 65535 ] 2>/dev/null || PROXY_PORT=0
+PROXY_URL=http://127.0.0.1:$PROXY_PORT
 NO_PROXY_VALUE=localhost,127.0.0.1,::1,10.31.0.0/16
 
 json_error() {
@@ -27,7 +31,8 @@ proxy_enabled() {
 }
 
 mihomo_listening() {
-    ss -ltn 2>/dev/null | awk '$4 ~ /127\.0\.0\.1:7890$/ {found=1} END {exit !found}'
+    [ "$PROXY_PORT" -gt 0 ] || return 1
+    ss -ltnH 2>/dev/null | awk -v suffix=":$PROXY_PORT" '$4 ~ suffix "$" {found=1} END {exit !found}'
 }
 
 show_status() {
@@ -62,7 +67,7 @@ restart_docker() {
 
 enable_proxy() {
     docker_available || json_error "设备上没有可用的 docker.service"
-    mihomo_listening || json_error "Mihomo 未监听 127.0.0.1:7890，请先启动核心"
+    mihomo_listening || json_error "Mihomo 未监听 127.0.0.1:$PROXY_PORT，请先启动核心"
     mkdir -p "$DROPIN_DIR"
     dropin_tmp="$DROPIN_DIR/.90-mihomo-proxy.conf.$$"
     cat > "$dropin_tmp" <<EOF
@@ -84,7 +89,7 @@ EOF
 
 disable_proxy() {
     docker_available || json_error "设备上没有可用的 docker.service"
-    if [ -e "$DROPIN_FILE" ]; then
+    if proxy_enabled; then
         rm -f "$DROPIN_FILE"
         restart_docker || json_error "代理配置已删除，但 Docker 重启失败"
     fi
@@ -95,7 +100,7 @@ disable_proxy() {
 exec 9>"$LOCK_FILE"
 flock -x 9
 
-case "${1:-status}" in
+case "$ACTION" in
     status) show_status ;;
     enable) enable_proxy ;;
     disable) disable_proxy ;;
