@@ -64,6 +64,22 @@ button { -webkit-tap-highlight-color: transparent; }
   padding: max(14px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
 }
 
+html.desktop-client,
+html.desktop-client body {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+html.desktop-client .shell {
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
 .hero {
   display: flex;
   align-items: center;

@@ -3,7 +3,7 @@ set -eu
 
 PLUGIN_USER="${1:-u103868178}"
 PLUGIN_NAME="mihomo"
-PLUGIN_VERSION="1.7.0"
+PLUGIN_VERSION="1.7.6"
 CORE_VERSION="v1.19.31"
 BUNDLE_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 PAYLOAD_DIR="$BUNDLE_DIR/payload"
@@ -124,7 +124,7 @@ fi
 chmod 0755 "$stage_src/files/mihomo" "$stage_src/files/"*.sh "$stage_src/ui/mihomo.cgi"
 chmod 0755 "$stage_src/system/mihomo-docker-proxy"
 chmod 0644 "$stage_src/files/"*.py
-chmod 0644 "$stage_src/ui/index.html" "$stage_src/ui/app.js" "$stage_src/ui/style.css" "$stage_src/ui/config"
+chmod 0644 "$stage_src/ui/index.html" "$stage_src/ui/app.js" "$stage_src/ui/client-bridge.js" "$stage_src/ui/style.css" "$stage_src/ui/config"
 
 if [ -d "$SRC_DIR" ] && [ ! -L "$SRC_DIR" ]; then
     mv "$SRC_DIR" "$old_src"
@@ -234,7 +234,7 @@ jq -n \
       desc:("Mihomo " + $core_version + " 代理管理"),
       developer:"Local / MetaCubeX",
       publisher:"Local",
-      changelog:"支持多用户安装，为每位用户自动分配独立代理端口与控制端口",
+      changelog:"修复电脑端底部遮挡并优化按钮和文字尺寸",
       system:false,
       size:$size,
       port:$controller_port,

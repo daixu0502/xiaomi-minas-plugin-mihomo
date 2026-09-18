@@ -231,7 +231,12 @@
     var settings = options || {};
     settings.cache = 'no-store';
     settings.credentials = 'same-origin';
-    return fetch('mihomo.cgi?action=' + encodeURIComponent(action), settings)
+    return window.XiaomiPluginClient.request({
+      plugin: 'mihomo',
+      cgi: 'mihomo.cgi',
+      action: action,
+      options: settings
+    })
       .then(function (response) {
         return response.json().catch(function () { throw new Error('设备返回了无法解析的数据'); });
       })
