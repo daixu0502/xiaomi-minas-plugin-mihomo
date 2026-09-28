@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Mihomo</title>
   <link rel="icon" href="../../icon/mihomo.icon">
-  <link rel="stylesheet" href="style.css?v=1.7.6">
+  <link rel="stylesheet" href="style.css?v=1.7.8">
 </head>
 <body>
   <main class="shell">
@@ -289,7 +289,7 @@
       </article>
     </section>
 
-    <footer id="pluginVersion">插件版本 1.7.6</footer>
+    <footer id="pluginVersion">插件版本 1.7.8</footer>
   </main>
 
   <div id="pickerBackdrop" class="mi-picker-backdrop" hidden></div>
@@ -321,7 +321,34 @@
   </section>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="client-bridge.js?v=1.7.6"></script>
+  <script src="client-bridge.js?v=1.7.8"></script>
   <script src="app.js"></script>
+  <script>
+    (function () {
+      var root = document.documentElement, body = document.body;
+      var dialogs = document.querySelectorAll('[aria-modal="true"]');
+      var locked = false, savedX = 0, savedY = 0;
+      function sync() {
+        var open = Array.prototype.some.call(dialogs, function (dialog) { return !dialog.hidden; });
+        if (open === locked) return;
+        locked = open;
+        if (open) {
+          savedX = window.pageXOffset;
+          savedY = window.pageYOffset;
+          if (!root.classList.contains('desktop-client')) body.style.setProperty('--dialog-scroll-top', -savedY + 'px');
+          root.classList.add('dialog-scroll-locked');
+        } else {
+          root.classList.remove('dialog-scroll-locked');
+          body.style.removeProperty('--dialog-scroll-top');
+          if (!root.classList.contains('desktop-client')) window.scrollTo(savedX, savedY);
+        }
+      }
+      var observer = new MutationObserver(sync);
+      Array.prototype.forEach.call(dialogs, function (dialog) {
+        observer.observe(dialog, { attributes: true, attributeFilter: ['hidden'] });
+      });
+      sync();
+    })();
+  </script>
 </body>
 </html>

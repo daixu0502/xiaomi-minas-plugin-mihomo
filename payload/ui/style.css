@@ -331,6 +331,46 @@ body.mi-picker-open, body.mi-confirm-open { overflow: hidden; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
 .toast.error { background: #8e3434; }
 
+/* Keep pickers and confirmations centered in mobile WebViews and desktop windows. */
+.mi-picker-backdrop, .mi-confirm-backdrop {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: mi-overlay-in .14s ease-out both;
+}
+.mi-picker-sheet {
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: min(680px, calc(100vw - 28px));
+  max-height: calc(100vh - 28px);
+  max-height: calc(100dvh - 28px);
+  margin: 0;
+  padding-right: 0;
+  padding-bottom: 12px;
+  padding-left: 0;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: 0 24px 64px rgba(10,34,35,.26);
+  transform: translate(-50%, -50%);
+  animation: mi-dialog-in .16s cubic-bezier(.2,.7,.2,1) both;
+}
+.mi-picker-handle { display: none; }
+.mi-picker-options { min-height: 0; flex: 1 1 auto; }
+.mi-confirm-dialog { animation: mi-dialog-in .16s cubic-bezier(.2,.7,.2,1) both; }
+html.dialog-scroll-locked, html.dialog-scroll-locked body { overflow: hidden; overscroll-behavior: none; }
+html.dialog-scroll-locked:not(.desktop-client) body { position: fixed; top: var(--dialog-scroll-top, 0px); left: 0; right: 0; width: 100%; }
+html.desktop-client.dialog-scroll-locked .shell { overflow-y: hidden; }
+.mi-picker-sheet, .mi-confirm-dialog { overscroll-behavior: contain; }
+@keyframes mi-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mi-dialog-in {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)) scale(.985); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mi-picker-backdrop, .mi-confirm-backdrop, .mi-picker-sheet, .mi-confirm-dialog { animation: none; }
+}
+
 @media (max-width: 560px) {
   .shell { padding-left: max(13px, env(safe-area-inset-left)); padding-right: max(13px, env(safe-area-inset-right)); }
   .hero { gap: 11px; }
