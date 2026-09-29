@@ -8,6 +8,7 @@
     ruleProviderNames: [],
     subscriptionConfigured: false,
     running: false,
+    coreBusy: false,
     dockerProxyAvailable: false,
     dockerProxyEnabled: false,
     coreUpdateAvailable: false,
@@ -259,9 +260,9 @@
     var pill = byId('statusPill');
     pill.className = 'status-pill ' + (running ? 'online' : 'offline');
     pill.innerHTML = '<span></span>' + (running ? '运行中' : '已停止');
-    byId('startButton').disabled = running;
-    byId('stopButton').disabled = !running;
-    byId('restartButton').disabled = !running;
+    byId('startButton').disabled = state.coreBusy || running;
+    byId('stopButton').disabled = state.coreBusy || !running;
+    byId('restartButton').disabled = state.coreBusy || !running;
   }
 
   function normalizeMode(value) {
@@ -788,9 +789,9 @@
         return loadCoreUpdate(false);
       }).catch(function (error) {
         toast(error.message, true);
-        loadCoreUpdate(false);
         loadStatus(false);
-      }).finally(function () { button.disabled = false; });
+        return loadCoreUpdate(false);
+      });
     });
   });
   byId('updateGeoData').addEventListener('click', function () {
@@ -928,7 +929,9 @@
   });
 
   function runCoreAction(action, button, successMessage) {
-    button.disabled = true;
+    if (state.coreBusy) return;
+    state.coreBusy = true;
+    setStatus(state.running);
     postJson(action, {}).then(function () {
       toast(successMessage);
       return loadStatus(false);
@@ -941,8 +944,8 @@
       }
     }).catch(function (error) {
       toast(error.message, true);
-      loadStatus(false);
-    }).finally(function () { button.disabled = false; });
+      return loadStatus(false);
+    }).finally(function () { state.coreBusy = false; setStatus(state.running); });
   }
 
   byId('startButton').addEventListener('click', function () {
@@ -975,8 +978,8 @@
         return loadDockerProxy(false);
       }).catch(function (error) {
         toast(error.message, true);
-        loadDockerProxy(false);
-      }).finally(function () { button.disabled = false; });
+        return loadDockerProxy(false);
+      });
     });
   });
 
@@ -989,8 +992,8 @@
         return loadDockerProxy(false);
       }).catch(function (error) {
         toast(error.message, true);
-        loadDockerProxy(false);
-      }).finally(function () { button.disabled = false; });
+        return loadDockerProxy(false);
+      });
     });
   });
 

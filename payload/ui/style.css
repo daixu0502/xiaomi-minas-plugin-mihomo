@@ -433,7 +433,25 @@ html.desktop-client .desktop-frame > .shell {
   overscroll-behavior-y: contain;
   scrollbar-gutter: stable;
 }
-html.desktop-client .desktop-frame > .shell > * { max-width: 1120px; margin-right: auto; margin-left: auto; }
+/* Explicit width also keeps pages with ID-specific max-width rules aligned. */
+html.desktop-client .desktop-frame > .shell > * { width: min(100%, 1120px); max-width: 1120px; margin-right: auto; margin-left: auto; }
+
+/* Disabled is a state, independent of the button's normal accent colour. */
+:root { --disabled-bg: #e8ebef; --disabled-text: #626c78; --disabled-border: #cbd1d8; }
+@media (prefers-color-scheme: dark) {
+  :root { --disabled-bg: #303740; --disabled-text: #aab2bd; --disabled-border: #48515e; }
+}
+html body button:disabled {
+  color: var(--disabled-text) !important;
+  background: var(--disabled-bg) !important;
+  border-color: var(--disabled-border) !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+  cursor: not-allowed !important;
+}
+html body button:disabled.button-loading,
+html body button:disabled[aria-busy="true"] { cursor: progress !important; }
+
 html.desktop-client .desktop-frame > .tabs {
   position: relative;
   inset: auto;
