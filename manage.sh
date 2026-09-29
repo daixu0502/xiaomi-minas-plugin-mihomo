@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_NAME='mihomo'
 PLUGIN_LABEL='Mihomo'
-PLUGIN_VERSION='1.7.15'
+PLUGIN_VERSION='1.7.18'
 UNINSTALL_NOTE='卸载会停止该用户的代理；若 Docker 正使用此代理，会撤销它并重启 Docker。其他用户插件和普通文件保留。'
 
 # Shared frontend; keep this section consistent across the four manage.sh files.

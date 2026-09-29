@@ -13,7 +13,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.desktop-client) {
     --bg: #0e1516;
     --surface: rgba(24, 34, 35, 0.94);
     --surface-solid: #182223;
@@ -341,6 +341,15 @@ body.mi-picker-open, body.mi-confirm-open { overflow: hidden; }
 .mi-confirm-button.cancel { color: var(--text); background: var(--bg); }
 .mi-confirm-button.accept { color: #fff; background: var(--teal); }
 .mi-confirm-dialog.danger .mi-confirm-button.accept { background: var(--red); }
+/* Shared confirmation layout: icon, centred copy, equal-width soft buttons. */
+.mi-confirm-dialog { width: min(380px, calc(100vw - 28px)); padding: 23px 20px max(20px, env(safe-area-inset-bottom)); }
+.mi-confirm-icon { width: 48px; height: 48px; font-size: 24px; }
+.mi-confirm-dialog h2 { margin: 0; font-size: 22px; overflow-wrap: anywhere; }
+.mi-confirm-dialog p { margin-top: 8px; }
+.mi-confirm-actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 9px; margin-top: 18px; }
+.mi-confirm-button { min-width: 0; min-height: 44px; border-radius: 12px; white-space: normal; overflow-wrap: anywhere; }
+.mi-confirm-dialog .mi-confirm-button.cancel, .mi-confirm-dialog .mi-confirm-button.accept { border: 1px solid var(--line); color: var(--teal-dark); background: var(--teal-soft); }
+.mi-confirm-dialog.danger .mi-confirm-button.accept { border-color: rgba(201,71,71,.25); color: var(--red); background: rgba(201,71,71,.1); }
 .toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); z-index: 20; max-width: calc(100% - 36px); padding: 11px 16px; border-radius: 12px; color: white; background: #213132; box-shadow: 0 12px 35px rgba(0,0,0,.24); font-size: 13px; transform: translate(-50%, 22px); opacity: 0; pointer-events: none; transition: 180ms ease; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
 .toast.error { background: #8e3434; }
@@ -414,8 +423,15 @@ html.desktop-client .desktop-frame {
   contain: layout paint;
   isolation: isolate;
   color: var(--text);
-  background: radial-gradient(circle at 8% -12%, rgba(39,188,174,.22), transparent 32rem), var(--bg);
+  background: radial-gradient(circle at 8% -12%, rgba(39,188,174,.22), transparent 32rem), #fff;
 }
+/* Desktop canvas stays white regardless of the operating system theme. */
+/* Keep the body gradient on the body when scroll locking makes it fixed. */
+html:not(.desktop-client) { background-color: var(--bg); }
+html.desktop-client { color-scheme: light; }
+html.desktop-client body { background: #fff; }
+html.desktop-client .shell > footer { color: #626c78; }
+html.desktop-client .hero-copy { color: #152224; --muted: #68777a; --teal: #087168; }
 html.desktop-client .desktop-frame > .shell {
   position: relative;
   inset: auto;
@@ -439,7 +455,7 @@ html.desktop-client .desktop-frame > .shell > * { width: min(100%, 1120px); max-
 /* Disabled is a state, independent of the button's normal accent colour. */
 :root { --disabled-bg: #e8ebef; --disabled-text: #626c78; --disabled-border: #cbd1d8; }
 @media (prefers-color-scheme: dark) {
-  :root { --disabled-bg: #303740; --disabled-text: #aab2bd; --disabled-border: #48515e; }
+  :root:not(.desktop-client) { --disabled-bg: #303740; --disabled-text: #aab2bd; --disabled-border: #48515e; }
 }
 html body button:disabled {
   color: var(--disabled-text) !important;
@@ -493,9 +509,7 @@ html.desktop-client .desktop-frame > .mi-confirm-dialog { max-width: calc(100% -
 
 /* Bright dark-theme accents need dark foregrounds, not white labels. */
 @media (prefers-color-scheme: dark) {
-  .button.primary,
+  html:not(.desktop-client) .button.primary,
   html:not(.desktop-client) .tab.active,
-  .mi-confirm-button.accept,
-  .mi-picker-option.selected .mi-picker-option-check { color: #082b29; }
-  .mi-confirm-dialog.danger .mi-confirm-button.accept { color: #301010; }
+  html:not(.desktop-client) .mi-picker-option.selected .mi-picker-option-check { color: #082b29; }
 }
