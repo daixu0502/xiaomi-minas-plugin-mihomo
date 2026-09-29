@@ -19,7 +19,7 @@ PLUGIN_HOME="/home/$plugin_user/plugin/mihomo"
 LIST_FILE="/data/plugin/$plugin_user.list"
 INFO_FILE="$PLUGIN_HOME/INFO"
 FRONTEND_FILE="$SRC_DIR/ui/config"
-LOCK_FILE="/data/plugin/.$plugin_user.mihomo.lock"
+LOCK_FILE="/data/plugin/.$plugin_user.plugins.lock"
 
 [ -f "$INFO_FILE" ] || exit 1
 [ -f "$FRONTEND_FILE" ] || exit 1

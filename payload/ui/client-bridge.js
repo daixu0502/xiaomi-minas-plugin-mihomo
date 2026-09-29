@@ -7,26 +7,73 @@
     document.documentElement.classList.add('desktop-client');
   }
 
+  // The desktop app embeds plugins in micro-app; viewport-fixed UI escapes its window.
+  function installDesktopLayout(shell, tabs) {
+    var parent = shell.parentElement;
+    var host = parent;
+    while (host) {
+      var tag = (host.tagName || '').toLowerCase();
+      if (/^micro-app(?:-|$)/.test(tag) && !/^micro-app-(body|head|html)$/.test(tag)) break;
+      host = host.parentElement || (host.getRootNode && host.getRootNode().host) || null;
+    }
+    var frame = document.createElement('div');
+    frame.className = 'desktop-frame';
+    parent.insertBefore(frame, shell);
+    if (tabs) frame.appendChild(tabs);
+    frame.appendChild(shell);
+    // Contain dialogs and their fixed backdrops within the same plugin window.
+    Array.prototype.slice.call(parent.children).forEach(function (child) {
+      if (child !== frame && child.matches('.modal-backdrop,.modal,.busy,.toast,.mi-picker-backdrop,.mi-picker-sheet,.mi-confirm-backdrop,.mi-confirm-dialog,.sheet,.dialog,.backdrop,.detail-sheet')) frame.appendChild(child);
+    });
+    if (/^(BODY|MICRO-APP-BODY)$/i.test(parent.tagName)) {
+      parent.style.setProperty('min-height', '0', 'important');
+      parent.style.setProperty('height', '100%', 'important');
+      parent.style.setProperty('margin', '0', 'important');
+      parent.style.setProperty('overflow', 'hidden', 'important');
+    }
+    var boundary = host || document.documentElement;
+    var outer = host && host.parentElement;
+    var pending = 0;
+    function updateSize() {
+      pending = 0;
+      if (!frame.isConnected) return;
+      var height = boundary.clientHeight;
+      if (outer && outer.clientHeight > 0) height = height > 0 ? Math.min(height, outer.clientHeight) : outer.clientHeight;
+      if (height > 0) frame.style.height = height + 'px';
+      frame.classList.toggle('desktop-compact', frame.clientWidth < 680);
+    }
+    function scheduleSize() {
+      if (!pending) pending = global.requestAnimationFrame(updateSize);
+    }
+    var observer = global.ResizeObserver ? new global.ResizeObserver(scheduleSize) : null;
+    if (observer) {
+      observer.observe(boundary);
+      if (outer) observer.observe(outer);
+      observer.observe(frame);
+    }
+    global.addEventListener('resize', scheduleSize);
+    function dispose() {
+      if (observer) observer.disconnect();
+      if (pending) global.cancelAnimationFrame(pending);
+      global.removeEventListener('resize', scheduleSize);
+      global.removeEventListener('unmount', dispose);
+      global.removeEventListener('pagehide', dispose);
+    }
+    global.addEventListener('unmount', dispose);
+    global.addEventListener('pagehide', dispose);
+    updateSize();
+    return frame;
+  }
+
   function installDesktopWheelSupport() {
     var shell = document.querySelector('.shell');
     if (!document.documentElement.classList.contains('desktop-client') || !shell || shell.getAttribute('data-desktop-wheel') === '1') return;
     shell.setAttribute('data-desktop-wheel', '1');
-    function syncDesktopViewport() {
-      var viewportHeight = (global.visualViewport && global.visualViewport.height) || global.innerHeight || document.documentElement.clientHeight;
-      if (!viewportHeight) return;
-      var top = shell.getBoundingClientRect ? Math.max(0, shell.getBoundingClientRect().top) : 0;
-      var availableHeight = Math.floor(viewportHeight - top - 72);
-      if (availableHeight < 180) availableHeight = Math.max(180, Math.floor(viewportHeight - 24));
-      shell.style.setProperty('height', availableHeight + 'px', 'important');
-      shell.style.setProperty('max-height', availableHeight + 'px', 'important');
-      shell.style.setProperty('min-height', '0', 'important');
-      shell.style.setProperty('overflow-x', 'hidden', 'important');
-      shell.style.setProperty('overflow-y', 'auto', 'important');
-      shell.style.setProperty('overscroll-behavior-y', 'contain', 'important');
-    }
-    syncDesktopViewport();
-    global.addEventListener('resize', syncDesktopViewport);
-    if (global.visualViewport) global.visualViewport.addEventListener('resize', syncDesktopViewport);
+    var tabs = shell.querySelector('.tabs');
+    var frame = installDesktopLayout(shell, tabs);
+    if (tabs) tabs.addEventListener('click', function (event) {
+      if (event.target.closest('.tab')) global.requestAnimationFrame(function () { shell.scrollTop = 0; });
+    });
     function compactDesktopControls(root) {
       var buttons = [];
       if (root.matches && root.matches('button')) buttons.push(root);
@@ -39,14 +86,14 @@
           button.style.setProperty('padding', '0', 'important');
           button.style.setProperty('font-size', '18px', 'important');
         } else {
-          button.style.setProperty('min-height', '34px', 'important');
-          button.style.setProperty('padding', '7px 10px', 'important');
-          button.style.setProperty('font-size', '12px', 'important');
+          button.style.setProperty('min-height', '38px', 'important');
+          button.style.setProperty('padding', '8px 12px', 'important');
+          button.style.setProperty('font-size', '14px', 'important');
           button.style.setProperty('line-height', '1.3', 'important');
         }
       });
     }
-    compactDesktopControls(shell);
+    compactDesktopControls(frame);
     if (global.MutationObserver) new global.MutationObserver(function (records) {
       records.forEach(function (record) { Array.prototype.forEach.call(record.addedNodes, function (node) { if (node.nodeType === 1) compactDesktopControls(node); }); });
     }).observe(shell, { childList: true, subtree: true });

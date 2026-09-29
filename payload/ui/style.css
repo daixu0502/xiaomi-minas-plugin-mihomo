@@ -207,8 +207,9 @@ select { display: block; width: 100%; min-width: 0; max-width: 100%; padding: 9p
 .provider-row .button { padding: 8px 12px; font-size: 12px; }
 
 .field-label { display: block; margin: 0 0 7px; color: var(--muted); font-size: 12px; font-weight: 700; }
-.url-input { width: 100%; padding: 12px 13px; border: 1px solid var(--line); border-radius: 12px; outline: none; color: var(--text); background: var(--surface-solid); }
+.url-input { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; outline: none; color: var(--text); background: var(--surface-solid); font-size: 16px; line-height: 1.4; }
 .url-input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(13, 141, 131, 0.12); }
+html.desktop-client .url-input { min-height: 42px; padding: 8px 11px; font-size: 15px; }
 .privacy-note { margin: 8px 2px 14px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .subscription-actions { flex-wrap: wrap; }
 .mini-badge { flex: 0 0 auto; padding: 6px 9px; border-radius: 999px; color: var(--muted); background: var(--bg); font-size: 11px; font-weight: 700; }
@@ -250,6 +251,19 @@ pre { overflow: auto; white-space: pre-wrap; word-break: break-word; }
 .editor-actions span { color: var(--muted); font-size: 11px; }
 
 footer { padding: 14px 0 2px; color: var(--muted); font-size: 10px; text-align: center; }
+html.desktop-client .shell { font-size: 15px; }
+html.desktop-client .shell .eyebrow { font-size: 11px; }
+html.desktop-client .shell .tab,
+html.desktop-client .shell .card p,
+html.desktop-client .shell .hero-copy p,
+html.desktop-client .shell .field-label,
+html.desktop-client .shell .form-grid label,
+html.desktop-client .shell .metric span,
+html.desktop-client .shell .row-title span,
+html.desktop-client .shell .privacy-note { font-size: 14px; }
+html.desktop-client .shell .mini-badge,
+html.desktop-client .shell .node-state,
+html.desktop-client .shell footer { font-size: 12px; }
 .mi-picker-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(7, 18, 19, .48); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
 .mi-picker-sheet {
   position: fixed;
@@ -386,4 +400,84 @@ html.desktop-client.dialog-scroll-locked .shell { overflow-y: hidden; }
   .tab { font-size: 12px; }
   .form-grid { grid-template-columns: 1fr; }
   .form-grid label.wide { grid-column: auto; }
+}
+
+/* The desktop frame is sized to the embedded plugin window, not the host viewport. */
+html.desktop-client .desktop-frame {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  contain: layout paint;
+  isolation: isolate;
+  color: var(--text);
+  background: radial-gradient(circle at 8% -12%, rgba(39,188,174,.22), transparent 32rem), var(--bg);
+}
+html.desktop-client .desktop-frame > .shell {
+  position: relative;
+  inset: auto;
+  flex: 1 1 0;
+  width: 0;
+  max-width: none;
+  height: 100%;
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 18px 22px 34px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+}
+html.desktop-client .desktop-frame > .shell > * { max-width: 1120px; margin-right: auto; margin-left: auto; }
+html.desktop-client .desktop-frame > .tabs {
+  position: relative;
+  inset: auto;
+  display: flex;
+  flex: 0 0 190px;
+  width: 190px;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin: 0;
+  padding: 22px 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--surface-solid);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html.desktop-client .desktop-frame > .tabs::before { content: "MIHOMO"; display: block; margin: 2px 10px 14px; color: var(--teal-dark); font-size: 13px; font-weight: 800; }
+html.desktop-client .desktop-frame > .tabs .tab { width: 100%; flex: 0 0 auto; color: var(--text); text-align: left; font-size: 14px; }
+html.desktop-client .desktop-frame > .tabs .tab.active { color: var(--teal-dark); background: var(--teal-soft); }
+html.desktop-client .desktop-frame.desktop-compact { flex-direction: column; }
+html.desktop-client .desktop-frame.desktop-compact > .tabs { flex: 0 0 auto; width: 100%; height: auto; max-height: 35%; flex-direction: row; padding: 8px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+html.desktop-client .desktop-frame.desktop-compact > .tabs::before { display: none; }
+html.desktop-client .desktop-frame.desktop-compact > .tabs .tab { width: auto; flex: 1 0 auto; text-align: center; }
+html.desktop-client .desktop-frame.desktop-compact > .shell { width: 100%; height: 0; padding: 14px 14px 30px; }
+html.desktop-client.dialog-scroll-locked .desktop-frame > .shell { overflow-y: hidden; }
+html.desktop-client .desktop-frame > .modal,
+html.desktop-client .desktop-frame > .sheet,
+html.desktop-client .desktop-frame > .dialog,
+html.desktop-client .desktop-frame > .detail-sheet,
+html.desktop-client .desktop-frame > .mi-picker-sheet,
+html.desktop-client .desktop-frame > .mi-confirm-dialog { max-width: calc(100% - 28px); max-height: calc(100% - 28px); }
+
+/* Bright dark-theme accents need dark foregrounds, not white labels. */
+@media (prefers-color-scheme: dark) {
+  .button.primary,
+  html:not(.desktop-client) .tab.active,
+  .mi-confirm-button.accept,
+  .mi-picker-option.selected .mi-picker-option-check { color: #082b29; }
+  .mi-confirm-dialog.danger .mi-confirm-button.accept { color: #301010; }
 }

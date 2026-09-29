@@ -1,2 +1,6 @@
 .cache/
+__pycache__/
+*.py[cod]
+*.tmp
+*.tgz
 payload/files/mihomo

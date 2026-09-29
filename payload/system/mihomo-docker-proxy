@@ -9,7 +9,7 @@ PROXY_PORT=${2:-}
 case "$PROXY_PORT" in ''|*[!0-9]*) PROXY_PORT=0 ;; esac
 [ "$PROXY_PORT" -ge 1024 ] 2>/dev/null && [ "$PROXY_PORT" -le 65535 ] 2>/dev/null || PROXY_PORT=0
 PROXY_URL=http://127.0.0.1:$PROXY_PORT
-NO_PROXY_VALUE=localhost,127.0.0.1,::1,10.31.0.0/16
+NO_PROXY_VALUE=localhost,127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
 
 json_error() {
     jq -n --arg message "$1" '{ok:false,error:$message}'
