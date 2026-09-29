@@ -58,6 +58,10 @@ serve_frontend() {
             static_header 'application/javascript; charset=utf-8'
             cat "$SCRIPT_DIR/client-bridge.js"
             ;;
+        */palette.css)
+            static_header 'text/css; charset=utf-8'
+            cat "$SCRIPT_DIR/palette.css"
+            ;;
         */style.css)
             static_header 'text/css; charset=utf-8'
             cat "$SCRIPT_DIR/style.css"
