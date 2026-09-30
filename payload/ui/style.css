@@ -20,8 +20,6 @@
   0% { opacity: 0; transform: translateY(4px); }
 }
 [data-minas-plugin="mihomo"] .card{border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow);}
-[data-minas-plugin="mihomo"] .metric span{display: block; margin-bottom: 7px; color: var(--muted); font-size: 12px;}
-[data-minas-plugin="mihomo"] .metric strong{font-size: 18px;}
 [data-minas-plugin="mihomo"] .card{min-width: 0px; max-width: 100%; margin-bottom: 12px; padding: 17px; border-radius: 20px;}
 [data-minas-plugin="mihomo"] .card-heading{display: flex; min-width: 0px; max-width: 100%; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 15px;}
 [data-minas-plugin="mihomo"] .card-heading > div:first-child{min-width: 0px;}
@@ -154,7 +152,6 @@
 [data-minas-plugin="mihomo"] .shell{padding-left: max(13px, env(safe-area-inset-left)); padding-right: max(13px, env(safe-area-inset-right));}
 [data-minas-plugin="mihomo"] h1{font-size: 24px;}
 [data-minas-plugin="mihomo"] .status-pill{padding: 6px 8px;}
-[data-minas-plugin="mihomo"] .metric strong{font-size: 15px;}
 [data-minas-plugin="mihomo"] .group-row{grid-template-columns: 1fr;}
 [data-minas-plugin="mihomo"] .button-row .button{flex: 1 1 140px; overflow-wrap: anywhere;}
 [data-minas-plugin="mihomo"] .form-grid{grid-template-columns: 1fr;}
