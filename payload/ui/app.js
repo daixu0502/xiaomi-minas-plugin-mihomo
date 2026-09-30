@@ -1,5 +1,6 @@
 (function () {
   'use strict';
+var document = window.XiaomiPluginClient.document;
 
   var state = {
     configLoaded: false,

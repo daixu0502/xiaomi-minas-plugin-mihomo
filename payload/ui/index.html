@@ -11,10 +11,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Mihomo</title>
   <link rel="icon" href="../../icon/mihomo.icon">
-  <link rel="stylesheet" href="style.css?v=1.7.19">
-  <link rel="stylesheet" href="palette.css?v=1.7.19">
+  <link rel="stylesheet" href="style.css?v=1.7.19&amp;ui=isolated-20260930">
+  <link rel="stylesheet" href="palette.css?v=1.7.19&amp;ui=isolated-20260930">
 </head>
-<body>
+<body><div data-minas-plugin="mihomo"><div class="minas-plugin-body">
   <main class="shell">
     <header class="hero">
       <div class="brand-mark" aria-hidden="true">M</div>
@@ -155,7 +155,7 @@
             <h2>策略组</h2>
             <p>选择各策略组当前使用的节点。</p>
           </div>
-          <button id="reloadProxies" class="icon-button" aria-label="刷新策略">↻</button>
+          <button id="reloadProxies" class="icon-button refresh-control" aria-label="刷新策略" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9a7 7 0 0 1 11.2-2.1L20 11M4 13l2.7 4.1A7 7 0 0 0 17.9 15"/></svg></button>
         </div>
         <div id="proxyGroups" class="stack empty-state">正在读取策略组…</div>
       </article>
@@ -235,7 +235,7 @@
             <h2>手动节点</h2>
             <p>导入后可到“策略”页的 PROXY 组中选择使用。</p>
           </div>
-          <button id="reloadManualNodes" class="icon-button" aria-label="刷新手动节点">↻</button>
+          <button id="reloadManualNodes" class="icon-button refresh-control" aria-label="刷新手动节点" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9a7 7 0 0 1 11.2-2.1L20 11M4 13l2.7 4.1A7 7 0 0 0 17.9 15"/></svg></button>
         </div>
         <div id="manualNodes" class="stack empty-state">正在读取手动节点…</div>
       </article>
@@ -267,7 +267,7 @@
             <h2>config.yaml</h2>
             <p>保存前自动校验；通过后重启核心。旧配置保留为 config.yaml.bak。</p>
           </div>
-          <button id="loadConfig" class="icon-button" aria-label="重新载入配置">↻</button>
+          <button id="loadConfig" class="icon-button refresh-control" aria-label="重新载入配置" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9a7 7 0 0 1 11.2-2.1L20 11M4 13l2.7 4.1A7 7 0 0 0 17.9 15"/></svg></button>
         </div>
         <textarea id="configEditor" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="正在读取配置…"></textarea>
         <div class="editor-actions">
@@ -284,7 +284,7 @@
             <h2>最近 200 行</h2>
             <p>用于排查配置和启动问题。</p>
           </div>
-          <button id="loadLogs" class="icon-button" aria-label="刷新日志">↻</button>
+          <button id="loadLogs" class="icon-button refresh-control" aria-label="刷新日志" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9a7 7 0 0 1 11.2-2.1L20 11M4 13l2.7 4.1A7 7 0 0 0 17.9 15"/></svg></button>
         </div>
         <pre id="logViewer">点击刷新读取日志。</pre>
       </article>
@@ -322,10 +322,11 @@
   </section>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="client-bridge.js?v=1.7.19"></script>
-  <script src="app.js?v=1.7.19"></script>
+  <script src="client-bridge.js?v=1.7.19&amp;ui=isolated-20260930"></script>
+  <script src="app.js?v=1.7.19&amp;ui=isolated-20260930"></script>
   <script>
     (function () {
+      var document = window.XiaomiPluginClient.document;
       var root = document.documentElement, body = document.body;
       var dialogs = document.querySelectorAll('[aria-modal="true"]');
       var locked = false, savedX = 0, savedY = 0;
@@ -351,5 +352,5 @@
       sync();
     })();
   </script>
-</body>
+</div></div></body>
 </html>
