@@ -5,26 +5,19 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#eef1f5" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0e1516" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#171a20" media="(prefers-color-scheme: dark)">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Mihomo</title>
   <link rel="icon" href="../../icon/mihomo.icon">
-  <link rel="stylesheet" href="style.css?v=1.7.19&amp;ui=isolated-20260930">
-  <link rel="stylesheet" href="palette.css?v=1.7.19&amp;ui=isolated-20260930">
+  <link rel="stylesheet" href="style.css?v=1.7.20&amp;ui=unified-20260930">
+  <link rel="stylesheet" href="palette.css?v=1.7.20&amp;ui=unified-20260930">
 </head>
 <body><div data-minas-plugin="mihomo"><div class="minas-plugin-body">
   <main class="shell">
-    <header class="hero">
-      <div class="brand-mark" aria-hidden="true">M</div>
-      <div class="hero-copy">
-        <div class="eyebrow">XIAOMI SMART STORAGE</div>
-        <h1>Mihomo</h1>
-        <p id="versionText">正在连接核心…</p>
-      </div>
-      <div id="statusPill" class="status-pill waiting"><span></span>检查中</div>
-    </header>
+    <header class="topbar plugin-header"><div><div class="eyebrow">XIAOMI SMART STORAGE</div><h1>Mihomo</h1></div><button id="refreshButton" class="icon-button refresh-control" type="button" aria-label="刷新"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9a7 7 0 0 1 11.2-2.1L20 11M4 13l2.7 4.1A7 7 0 0 0 17.9 15"/></svg></button></header>
+<section class="plugin-status"><div class="status-main"><div id="statusPill" class="status-pill waiting"><span></span>检查中</div><h2 class="status-title">代理服务</h2></div><p id="versionText" class="status-description">正在连接核心…</p></section>
 
     <nav class="tabs" aria-label="页面导航">
       <button class="tab active" data-page="overview">概览</button>
@@ -86,7 +79,6 @@
           </div>
         </div>
         <div class="button-row">
-          <button id="refreshButton" class="button secondary">刷新状态</button>
           <button id="startButton" class="button primary">启动核心</button>
           <button id="stopButton" class="button danger">停止核心</button>
           <button id="restartButton" class="button danger">重启核心</button>
@@ -290,7 +282,7 @@
       </article>
     </section>
 
-    <footer id="pluginVersion">插件版本 1.7.19</footer>
+    <footer id="pluginVersion">插件版本 1.7.20</footer>
   </main>
 
   <div id="pickerBackdrop" class="mi-picker-backdrop" hidden></div>
@@ -322,8 +314,8 @@
   </section>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="client-bridge.js?v=1.7.19&amp;ui=isolated-20260930"></script>
-  <script src="app.js?v=1.7.19&amp;ui=isolated-20260930"></script>
+  <script src="client-bridge.js?v=1.7.20&amp;ui=unified-20260930"></script>
+  <script src="app.js?v=1.7.20&amp;ui=unified-20260930"></script>
   <script>
     (function () {
       var document = window.XiaomiPluginClient.document;

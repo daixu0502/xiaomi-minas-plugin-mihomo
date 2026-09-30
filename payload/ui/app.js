@@ -767,7 +767,15 @@ var document = window.XiaomiPluginClient.document;
     });
   });
 
-  byId('refreshButton').addEventListener('click', function () { loadStatus(true); });
+  byId('refreshButton').addEventListener('click', function () {
+    var button = this;
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    loadStatus(true).finally(function () {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+    });
+  });
   byId('checkCoreUpdate').addEventListener('click', function () {
     var button = this;
     button.disabled = true;

@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_NAME='mihomo'
 PLUGIN_LABEL='Mihomo'
-PLUGIN_VERSION='1.7.19'
+PLUGIN_VERSION='1.7.20'
 UNINSTALL_NOTE='卸载会停止该用户的代理；若 Docker 正使用此代理，会撤销它并重启 Docker。其他用户插件和普通文件保留。'
 
 # Shared frontend; keep this section consistent across the four manage.sh files.
@@ -707,7 +707,7 @@ jq -n \
       desc:("Mihomo " + $core_version + " 代理管理"),
       developer:"Local / MetaCubeX",
       publisher:"Local",
-      changelog:"统一安装卸载流程与多用户选择",
+      changelog:"统一六插件视觉规范、全宽桌面布局、手机深色主题与样式隔离",
       system:false,
       size:$size,
       port:$controller_port,

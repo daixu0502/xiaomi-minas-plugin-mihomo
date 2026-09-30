@@ -93,29 +93,7 @@
     if (tabs) tabs.addEventListener('click', function (event) {
       if (event.target.closest('.tab')) global.requestAnimationFrame(function () { shell.scrollTop = 0; });
     });
-    function compactDesktopControls(root) {
-      var buttons = [];
-      if (root.matches && root.matches('button')) buttons.push(root);
-      if (root.querySelectorAll) buttons = buttons.concat(Array.prototype.slice.call(root.querySelectorAll('button')));
-      buttons.forEach(function (button) {
-        if (button.classList.contains('icon-button') || button.classList.contains('mi-picker-close') || button.classList.contains('mi-confirm-close')) {
-          button.style.setProperty('width', '38px', 'important');
-          button.style.setProperty('height', '38px', 'important');
-          button.style.setProperty('min-height', '38px', 'important');
-          button.style.setProperty('padding', '0', 'important');
-          button.style.setProperty('font-size', '18px', 'important');
-        } else {
-          button.style.setProperty('min-height', '38px', 'important');
-          button.style.setProperty('padding', '8px 12px', 'important');
-          button.style.setProperty('font-size', '14px', 'important');
-          button.style.setProperty('line-height', '1.3', 'important');
-        }
-      });
-    }
-    compactDesktopControls(frame);
-    if (global.MutationObserver) new global.MutationObserver(function (records) {
-      records.forEach(function (record) { Array.prototype.forEach.call(record.addedNodes, function (node) { if (node.nodeType === 1) compactDesktopControls(node); }); });
-    }).observe(shell, { childList: true, subtree: true });
+    // Control sizes are owned by scoped palette.css, including dynamically added controls.
     global.addEventListener('wheel', function (event) {
       if (event.ctrlKey || !event.deltaY || !shell.contains(event.target)) return;
       var node = event.target;

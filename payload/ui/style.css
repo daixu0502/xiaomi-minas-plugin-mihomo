@@ -1,6 +1,4 @@
-/* Plugin-scoped CSS: never style the Xiaomi client host document. */
-[data-minas-plugin="mihomo"]{--bg: #f3f6f8; --surface: rgba(255, 255, 255, 0.9); --surface-solid: #ffffff; --text: #152224; --muted: #68777a; --line: #dfe7e8; --teal: #0d8d83; --teal-dark: #087168; --teal-soft: #daf3ef; --red: #c94747; --shadow: 0 14px 40px rgba(22, 56, 57, 0.09);}
-@media (prefers-color-scheme: dark) {[data-minas-plugin="mihomo"]:not(.desktop-client){--bg: #0e1516; --surface: rgba(24, 34, 35, 0.94); --surface-solid: #182223; --text: #eff6f5; --muted: #9baaaa; --line: #2b3a3c; --teal: #3dc4b8; --teal-dark: #64d8cd; --teal-soft: #163b38; --red: #f07878; --shadow: 0 18px 45px rgba(0, 0, 0, 0.24);}}
+/* Plugin-specific components. Shared chrome/theme live in palette.css. */
 [data-minas-plugin="mihomo"] *{box-sizing: border-box;}
 [data-minas-plugin="mihomo"] [hidden]{display: none !important;}
 [data-minas-plugin="mihomo"]{width: 100%; max-width: 100%; overflow-x: hidden; text-size-adjust: 100%;}
@@ -9,29 +7,19 @@
 [data-minas-plugin="mihomo"] button, [data-minas-plugin="mihomo"] input, [data-minas-plugin="mihomo"] select, [data-minas-plugin="mihomo"] textarea{font: inherit;}
 [data-minas-plugin="mihomo"] button{-webkit-tap-highlight-color: transparent;}
 [data-minas-plugin="mihomo"] .shell{width: min(920px, 100%); min-width: 0px; max-width: 100%; margin: 0px auto; padding: max(14px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));}
-[data-minas-plugin="mihomo"].desktop-client, [data-minas-plugin="mihomo"].desktop-client .minas-plugin-body{width: 100%; height: 100%; min-height: 100%; overflow: hidden;}
-[data-minas-plugin="mihomo"].desktop-client .shell{height: 100%; min-height: 0px; overflow: hidden auto; overscroll-behavior-y: contain;}
-[data-minas-plugin="mihomo"] .hero{display: flex; align-items: center; gap: 14px; padding: 10px 2px 20px;}
-[data-minas-plugin="mihomo"] .brand-mark{display: grid; place-items: center; width: 54px; height: 54px; flex: 0 0 54px; color: white; border-radius: 17px; background: linear-gradient(145deg, rgb(25, 184, 170), rgb(8, 107, 102)); box-shadow: rgba(13, 141, 131, 0.28) 0px 10px 24px; font-size: 25px; font-weight: 800; letter-spacing: -2px;}
-[data-minas-plugin="mihomo"] .hero-copy{min-width: 0px; flex: 1 1 0%;}
-[data-minas-plugin="mihomo"] .eyebrow{color: var(--teal); font-size: 10px; font-weight: 800; letter-spacing: 0.12em;}
 [data-minas-plugin="mihomo"] h1{margin: 2px 0px 0px; font-size: 28px; letter-spacing: -0.035em;}
-[data-minas-plugin="mihomo"] .hero-copy p{margin: 3px 0px 0px; overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap;}
 [data-minas-plugin="mihomo"] .status-pill{display: flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 12px; font-weight: 700;}
 [data-minas-plugin="mihomo"] .status-pill span{width: 7px; height: 7px; border-radius: 50%; background: rgb(160, 171, 173);}
 [data-minas-plugin="mihomo"] .status-pill.online{color: var(--teal-dark); border-color: rgba(13, 141, 131, 0.28); background: var(--teal-soft);}
 [data-minas-plugin="mihomo"] .status-pill.online span{background: var(--teal); box-shadow: rgba(13, 141, 131, 0.13) 0px 0px 0px 4px;}
 [data-minas-plugin="mihomo"] .status-pill.offline{color: var(--red);}
 [data-minas-plugin="mihomo"] .status-pill.offline span{background: var(--red);}
-[data-minas-plugin="mihomo"] .tabs{display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; padding: 5px; margin-bottom: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); position: sticky; top: max(8px, env(safe-area-inset-top)); z-index: 5; backdrop-filter: blur(16px); touch-action: pan-y;}
-[data-minas-plugin="mihomo"] .tab{border: 0px; border-radius: 11px; padding: 10px 4px; color: var(--muted); background: transparent; font-size: 13px; font-weight: 700; cursor: pointer;}
-[data-minas-plugin="mihomo"] .tab.active{color: white; background: var(--teal); box-shadow: rgba(13, 141, 131, 0.2) 0px 5px 14px;}
 [data-minas-plugin="mihomo"] .page{display: none; min-width: 0px; max-width: 100%;}
 [data-minas-plugin="mihomo"] .page.active{display: block; animation: 160ms ease-out 0s 1 normal none running mihomo-page-in;}
-@keyframes mihomo-page-in{0% { opacity: 0; transform: translateY(4px); }}
-[data-minas-plugin="mihomo"] .metric-grid{display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px;}
-[data-minas-plugin="mihomo"] .metric, [data-minas-plugin="mihomo"] .card{border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow);}
-[data-minas-plugin="mihomo"] .metric{padding: 15px; border-radius: 17px;}
+@keyframes mihomo-page-in {
+  0% { opacity: 0; transform: translateY(4px); }
+}
+[data-minas-plugin="mihomo"] .card{border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow);}
 [data-minas-plugin="mihomo"] .metric span{display: block; margin-bottom: 7px; color: var(--muted); font-size: 12px;}
 [data-minas-plugin="mihomo"] .metric strong{font-size: 18px;}
 [data-minas-plugin="mihomo"] .card{min-width: 0px; max-width: 100%; margin-bottom: 12px; padding: 17px; border-radius: 20px;}
@@ -46,7 +34,6 @@
 [data-minas-plugin="mihomo"] .button-row{display: flex; flex-wrap: wrap; gap: 9px;}
 [data-minas-plugin="mihomo"] .button{min-width: 0px; border: 0px; border-radius: 12px; padding: 11px 16px; font-weight: 700; cursor: pointer;}
 [data-minas-plugin="mihomo"] .button:disabled, [data-minas-plugin="mihomo"] .icon-button:disabled{opacity: 0.5; cursor: wait;}
-[data-minas-plugin="mihomo"] .button.primary{color: white; background: var(--teal);}
 [data-minas-plugin="mihomo"] .button.secondary{color: var(--teal-dark); background: var(--teal-soft);}
 [data-minas-plugin="mihomo"] .button.danger{color: var(--red); background: color-mix(in srgb, var(--red) 13%, transparent);}
 [data-minas-plugin="mihomo"] .button.compact{padding: 8px 11px; font-size: 12px; white-space: nowrap;}
@@ -95,14 +82,11 @@
 [data-minas-plugin="mihomo"] pre{overflow: auto; white-space: pre-wrap; word-break: break-word;}
 [data-minas-plugin="mihomo"] .editor-actions{display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px;}
 [data-minas-plugin="mihomo"] .editor-actions span{color: var(--muted); font-size: 11px;}
-[data-minas-plugin="mihomo"] footer{padding: 14px 0px 2px; color: var(--muted); font-size: 10px; text-align: center;}
-[data-minas-plugin="mihomo"].desktop-client .shell{font-size: 15px;}
-[data-minas-plugin="mihomo"].desktop-client .shell .eyebrow{font-size: 11px;}
-[data-minas-plugin="mihomo"].desktop-client .shell .tab, [data-minas-plugin="mihomo"].desktop-client .shell .card p, [data-minas-plugin="mihomo"].desktop-client .shell .hero-copy p, [data-minas-plugin="mihomo"].desktop-client .shell .field-label, [data-minas-plugin="mihomo"].desktop-client .shell .form-grid label, [data-minas-plugin="mihomo"].desktop-client .shell .metric span, [data-minas-plugin="mihomo"].desktop-client .shell .row-title span, [data-minas-plugin="mihomo"].desktop-client .shell .privacy-note{font-size: 14px;}
-[data-minas-plugin="mihomo"].desktop-client .shell .mini-badge, [data-minas-plugin="mihomo"].desktop-client .shell .node-state, [data-minas-plugin="mihomo"].desktop-client .shell footer{font-size: 12px;}
 [data-minas-plugin="mihomo"] .mi-picker-backdrop{position: fixed; inset: 0px; z-index: 40; background: rgba(7, 18, 19, 0.48); backdrop-filter: blur(3px);}
-[data-minas-plugin="mihomo"] .mi-picker-sheet{position: fixed; right: 0px; bottom: 0px; left: 0px; z-index: 41; display: flex; width: min(100%, 680px); max-height: min(78dvh, 720px); margin: 0px auto; padding-right: env(safe-area-inset-right); padding-bottom: max(12px, env(safe-area-inset-bottom)); padding-left: env(safe-area-inset-left); overflow: hidden; flex-direction: column; border-top-color: ; border-top-style: ; border-top-width: ; border-right-color: ; border-right-style: ; border-right-width: ; border-left-color: ; border-left-style: ; border-left-width: ; border-image-source: ; border-image-slice: ; border-image-width: ; border-image-outset: ; border-image-repeat: ; border-bottom: 0px; border-radius: 24px 24px 0px 0px; background: var(--surface-solid); box-shadow: rgba(10, 34, 35, 0.22) 0px -18px 55px; animation: 180ms ease-out 0s 1 normal none running mihomo-picker-up; touch-action: pan-y;}
-@keyframes mihomo-picker-up{0% { transform: translateY(28px); opacity: 0.5; }}
+[data-minas-plugin="mihomo"] .mi-picker-sheet{position: fixed; right: 0px; bottom: 0px; left: 0px; z-index: 41; display: flex; width: min(100%, 680px); max-height: min(78dvh, 720px); margin: 0px auto; padding-right: env(safe-area-inset-right); padding-bottom: max(12px, env(safe-area-inset-bottom)); padding-left: env(safe-area-inset-left); overflow: hidden; flex-direction: column; border-bottom: 0px; border-radius: 24px 24px 0px 0px; background: var(--surface-solid); box-shadow: rgba(10, 34, 35, 0.22) 0px -18px 55px; animation: 180ms ease-out 0s 1 normal none running mihomo-picker-up; touch-action: pan-y;}
+@keyframes mihomo-picker-up {
+  0% { transform: translateY(28px); opacity: 0.5; }
+}
 [data-minas-plugin="mihomo"] .mi-picker-handle{width: 40px; height: 4px; flex: 0 0 4px; margin: 9px auto 3px; border-radius: 4px; background: var(--line);}
 [data-minas-plugin="mihomo"] .mi-picker-header{display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 17px 12px; border-bottom: 1px solid var(--line);}
 [data-minas-plugin="mihomo"] .mi-picker-header h2{margin: 2px 0px 0px; font-size: 19px;}
@@ -125,7 +109,9 @@
 [data-minas-plugin="mihomo"] .minas-plugin-body.mi-picker-open, [data-minas-plugin="mihomo"] .minas-plugin-body.mi-confirm-open{overflow: hidden;}
 [data-minas-plugin="mihomo"] .mi-confirm-backdrop{position: fixed; inset: 0px; z-index: 50; background: rgba(7, 18, 19, 0.52); backdrop-filter: blur(4px);}
 [data-minas-plugin="mihomo"] .mi-confirm-dialog{position: fixed; top: 50%; left: 50%; z-index: 51; width: min(88%, 360px); max-height: calc(100dvh - 48px); padding: 22px 20px max(18px, env(safe-area-inset-bottom)); overflow: auto; border: 1px solid var(--line); border-radius: 24px; color: var(--text); background: var(--surface-solid); box-shadow: rgba(7, 26, 27, 0.3) 0px 24px 70px; text-align: center; transform: translate(-50%, -50%); animation: 160ms ease-out 0s 1 normal none running mihomo-confirm-in;}
-@keyframes mihomo-confirm-in{0% { opacity: 0; transform: translate(-50%, -46%) scale(0.97); }}
+@keyframes mihomo-confirm-in {
+  0% { opacity: 0; transform: translate(-50%, -46%) scale(0.97); }
+}
 [data-minas-plugin="mihomo"] .mi-confirm-icon{display: grid; place-items: center; width: 46px; height: 46px; margin: 0px auto 13px; border-radius: 15px; color: var(--teal-dark); background: var(--teal-soft); font-size: 23px; font-weight: 800;}
 [data-minas-plugin="mihomo"] .mi-confirm-dialog.danger .mi-confirm-icon{color: var(--red); background: color-mix(in srgb, var(--red) 13%, transparent);}
 [data-minas-plugin="mihomo"] .mi-confirm-dialog h2{margin: 0px 0px 9px; font-size: 19px;}
@@ -152,57 +138,31 @@
 [data-minas-plugin="mihomo"] .mi-picker-options{min-height: 0px; flex: 1 1 auto;}
 [data-minas-plugin="mihomo"] .mi-confirm-dialog{animation: 0.16s cubic-bezier(0.2, 0.7, 0.2, 1) 0s 1 normal both running mihomo-mi-dialog-in;}
 [data-minas-plugin="mihomo"].dialog-scroll-locked, [data-minas-plugin="mihomo"].dialog-scroll-locked .minas-plugin-body{overflow: hidden; overscroll-behavior: none;}
-[data-minas-plugin="mihomo"].dialog-scroll-locked:not(.desktop-client) .minas-plugin-body{position: fixed; top: var(--dialog-scroll-top, 0px); left: 0px; right: 0px; width: 100%;}
-[data-minas-plugin="mihomo"].desktop-client.dialog-scroll-locked .shell{overflow-y: hidden;}
 [data-minas-plugin="mihomo"] .mi-picker-sheet, [data-minas-plugin="mihomo"] .mi-confirm-dialog{overscroll-behavior: contain;}
-@keyframes mihomo-mi-overlay-in{0% { opacity: 0; }
-100% { opacity: 1; }}
-@keyframes mihomo-mi-dialog-in{0% { opacity: 0; transform: translate(-50%, calc(-50% + 8px)) scale(0.985); }
-100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }}
-@media (prefers-reduced-motion: reduce) {[data-minas-plugin="mihomo"] .mi-picker-backdrop, [data-minas-plugin="mihomo"] .mi-confirm-backdrop, [data-minas-plugin="mihomo"] .mi-picker-sheet, [data-minas-plugin="mihomo"] .mi-confirm-dialog{animation: auto ease 0s 1 normal none running none;}}
-@media (max-width: 560px) {[data-minas-plugin="mihomo"] .shell{padding-left: max(13px, env(safe-area-inset-left)); padding-right: max(13px, env(safe-area-inset-right));}
-[data-minas-plugin="mihomo"] .hero{gap: 11px;}
-[data-minas-plugin="mihomo"] .brand-mark{width: 48px; height: 48px; flex-basis: 48px; border-radius: 15px;}
+@keyframes mihomo-mi-overlay-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes mihomo-mi-dialog-in {
+  0% { opacity: 0; transform: translate(-50%, calc(-50% + 8px)) scale(0.985); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@media (prefers-reduced-motion: reduce){
+[data-minas-plugin="mihomo"] .mi-picker-backdrop, [data-minas-plugin="mihomo"] .mi-confirm-backdrop, [data-minas-plugin="mihomo"] .mi-picker-sheet, [data-minas-plugin="mihomo"] .mi-confirm-dialog{animation: auto ease 0s 1 normal none running none;}
+}
+@media (max-width: 560px){
+[data-minas-plugin="mihomo"] .shell{padding-left: max(13px, env(safe-area-inset-left)); padding-right: max(13px, env(safe-area-inset-right));}
 [data-minas-plugin="mihomo"] h1{font-size: 24px;}
 [data-minas-plugin="mihomo"] .status-pill{padding: 6px 8px;}
-[data-minas-plugin="mihomo"] .metric-grid{gap: 7px;}
-[data-minas-plugin="mihomo"] .metric{padding: 12px 10px;}
 [data-minas-plugin="mihomo"] .metric strong{font-size: 15px;}
 [data-minas-plugin="mihomo"] .group-row{grid-template-columns: 1fr;}
 [data-minas-plugin="mihomo"] .button-row .button{flex: 1 1 140px; overflow-wrap: anywhere;}
-[data-minas-plugin="mihomo"] .tabs{gap: 3px;}
-[data-minas-plugin="mihomo"] .tab{font-size: 12px;}
 [data-minas-plugin="mihomo"] .form-grid{grid-template-columns: 1fr;}
-[data-minas-plugin="mihomo"] .form-grid label.wide{grid-column: auto;}}
-[data-minas-plugin="mihomo"].desktop-client .desktop-frame{position: relative; display: flex; width: 100%; height: 100%; min-width: 0px; min-height: 0px; overflow: hidden; contain: layout paint; isolation: isolate; color: var(--text); background: radial-gradient(circle at 8% -12%, rgba(39, 188, 174, 0.22), transparent 32rem), rgb(255, 255, 255);}
+[data-minas-plugin="mihomo"] .form-grid label.wide{grid-column: auto;}
+}
 [data-minas-plugin="mihomo"]:not(.desktop-client){background-color: var(--bg);}
-[data-minas-plugin="mihomo"].desktop-client{color-scheme: light;}
-[data-minas-plugin="mihomo"].desktop-client .minas-plugin-body{background: rgb(255, 255, 255);}
-[data-minas-plugin="mihomo"].desktop-client .shell > footer{color: rgb(98, 108, 120);}
-[data-minas-plugin="mihomo"].desktop-client .hero-copy{color: rgb(21, 34, 36); --muted: #68777a; --teal: #087168;}
-[data-minas-plugin="mihomo"].desktop-client .desktop-frame > .shell{position: relative; inset: auto; flex: 1 1 0px; width: 0px; max-width: none; height: 100%; max-height: 100%; min-width: 0px; min-height: 0px; margin: 0px; padding: 18px 22px 34px; overflow: hidden auto; overscroll-behavior-y: contain; scrollbar-gutter: stable;}
-[data-minas-plugin="mihomo"].desktop-client .desktop-frame > .shell > *{width: min(100%, 1120px); max-width: 1120px; margin-right: auto; margin-left: auto;}
-[data-minas-plugin="mihomo"]{--disabled-bg: #e8ebef; --disabled-text: #626c78; --disabled-border: #cbd1d8;}
-@media (prefers-color-scheme: dark) {[data-minas-plugin="mihomo"]:not(.desktop-client){--disabled-bg: #303740; --disabled-text: #aab2bd; --disabled-border: #48515e;}}
 [data-minas-plugin="mihomo"] .minas-plugin-body button:disabled{color: var(--disabled-text) !important; background: var(--disabled-bg) !important; border-color: var(--disabled-border) !important; box-shadow: none !important; opacity: 1 !important; cursor: not-allowed !important;}
 [data-minas-plugin="mihomo"] .minas-plugin-body button:disabled.button-loading, [data-minas-plugin="mihomo"] .minas-plugin-body button:disabled[aria-busy="true"]{cursor: progress !important;}
-[data-minas-plugin="mihomo"].desktop-client .desktop-frame > .tabs{position: relative; inset: auto; display: flex; flex: 0 0 190px; width: 190px; height: 100%; min-height: 0px; flex-direction: column; align-items: stretch; gap: 6px; margin: 0px; padding: 22px 12px; overflow: hidden auto; border-top: 0px; border-bottom: 0px; border-left: 0px; border-image: none; border-right: 1px solid var(--line); border-radius: 0px; background: var(--surface-solid); box-shadow: none; backdrop-filter: none;}
-[data-minas-plugin="mihomo"].desktop-client .desktop-frame > .tabs::before{content: "MIHOMO"; display: block; margin: 2px 10px 14px; color: var(--teal-dark); font-size: 13px; font-weight: 800;}
-[data-minas-plugin="mihomo"].desktop-client .desktop-frame > .tabs .tab{width: 100%; flex: 0 0 auto; color: var(--text); text-align: left; font-size: 14px;}
-[data-minas-plugin="mihomo"].desktop-client .desktop-frame > .tabs .tab.active{color: var(--teal-dark); background: var(--teal-soft);}
-[data-minas-plugin="mihomo"].desktop-client .desktop-frame.desktop-compact{flex-direction: column;}
-[data-minas-plugin="mihomo"].desktop-client .desktop-frame.desktop-compact > .tabs{flex: 0 0 auto; width: 100%; height: auto; max-height: 35%; flex-direction: row; padding: 8px; overflow-x: auto; border-right: 0px; border-bottom: 1px solid var(--line);}
-[data-minas-plugin="mihomo"].desktop-client .desktop-frame.desktop-compact > .tabs::before{display: none;}
-[data-minas-plugin="mihomo"].desktop-client .desktop-frame.desktop-compact > .tabs .tab{width: auto; flex: 1 0 auto; text-align: center;}
-[data-minas-plugin="mihomo"].desktop-client .desktop-frame.desktop-compact > .shell{width: 100%; height: 0px; padding: 14px 14px 30px;}
-[data-minas-plugin="mihomo"].desktop-client.dialog-scroll-locked .desktop-frame > .shell{overflow-y: hidden;}
-[data-minas-plugin="mihomo"].desktop-client .desktop-frame > .modal, [data-minas-plugin="mihomo"].desktop-client .desktop-frame > .sheet, [data-minas-plugin="mihomo"].desktop-client .desktop-frame > .dialog, [data-minas-plugin="mihomo"].desktop-client .desktop-frame > .detail-sheet, [data-minas-plugin="mihomo"].desktop-client .desktop-frame > .mi-picker-sheet, [data-minas-plugin="mihomo"].desktop-client .desktop-frame > .mi-confirm-dialog{max-width: calc(100% - 28px); max-height: calc(100% - 28px);}
-@media (prefers-color-scheme: dark) {[data-minas-plugin="mihomo"]:not(.desktop-client) .button.primary, [data-minas-plugin="mihomo"]:not(.desktop-client) .tab.active, [data-minas-plugin="mihomo"]:not(.desktop-client) .mi-picker-option.selected .mi-picker-option-check{color: rgb(8, 43, 41);}}
-[data-minas-plugin="mihomo"] .minas-plugin-body button.refresh-control{display: inline-flex; align-items: center; justify-content: center; gap: 0px; width: 43px; height: 43px; min-height: 43px; flex: 0 0 43px; padding: 0px; border: 1px solid var(--line); border-radius: 14px; color: var(--text); background: var(--surface-solid,var(--surface)); line-height: 1;}
-[data-minas-plugin="mihomo"] .minas-plugin-body button.refresh-control svg{display: block; width: 22px; height: 22px; fill: none; stroke: currentcolor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;}
-[data-minas-plugin="mihomo"] .minas-plugin-body button.refresh-control:active{transform: rotate(45deg);}
-[data-minas-plugin="mihomo"] .minas-plugin-body button.refresh-control:focus-visible{outline: 2px solid var(--accent,var(--teal-dark,#2563c9)); outline-offset: 3px;}
-[data-minas-plugin="mihomo"] .minas-plugin-body button.refresh-control[aria-busy="true"] svg{display: none;}
-[data-minas-plugin="mihomo"] .minas-plugin-body button.refresh-control[aria-busy="true"]::before{margin: 0px;}
-@media (prefers-reduced-motion: reduce) {[data-minas-plugin="mihomo"] .minas-plugin-body button.refresh-control:active{transform: none;}}
-[data-minas-plugin="mihomo"].desktop-client .minas-plugin-body button.refresh-control{flex-basis: 38px; width: 38px; height: 38px; min-height: 38px;}
+@media (prefers-color-scheme: dark){
+[data-minas-plugin="mihomo"]:not(.desktop-client) .mi-picker-option.selected .mi-picker-option-check{color: rgb(8, 43, 41);}
+}
