@@ -6,6 +6,7 @@ var document = window.XiaomiPluginClient.document;
     configLoaded: false,
     currentMode: '',
     proxyProviderNames: [],
+    proxyProviderSkippedCount: 0,
     ruleProviderNames: [],
     subscriptionConfigured: false,
     running: false,
@@ -483,9 +484,25 @@ var document = window.XiaomiPluginClient.document;
     });
   }
 
+  function providerSkipReason(name, provider, kind) {
+    if (kind !== 'proxy') return '';
+    var vehicle = String(provider.vehicleType || '').toLowerCase();
+    if (vehicle === 'compatible') return '内置提供者，无需单独更新';
+    if (vehicle === 'file' && (name === 'APP-MANUAL' || name === 'APP-SUBSCRIPTION') &&
+        Array.isArray(provider.proxies) && provider.proxies.length === 0) {
+      return '尚无节点，请先在订阅页导入';
+    }
+    return '';
+  }
+
   function renderProviders(container, providers, kind) {
     var names = Object.keys(providers);
-    if (kind === 'proxy') state.proxyProviderNames = names;
+    if (kind === 'proxy') {
+      state.proxyProviderNames = names.filter(function (name) {
+        return !providerSkipReason(name, providers[name] || {}, kind);
+      });
+      state.proxyProviderSkippedCount = names.length - state.proxyProviderNames.length;
+    }
     else state.ruleProviderNames = names;
     container.textContent = '';
     container.className = 'stack';
@@ -496,6 +513,7 @@ var document = window.XiaomiPluginClient.document;
     }
     names.forEach(function (name) {
       var provider = providers[name] || {};
+      var skipReason = providerSkipReason(name, provider, kind);
       var row = document.createElement('div');
       row.className = 'provider-row';
       var title = document.createElement('div');
@@ -509,14 +527,21 @@ var document = window.XiaomiPluginClient.document;
         detail = (provider.vehicleType || 'provider') + ' · ' + ruleCount + ' 条规则';
       }
       title.appendChild(textElement('span', '', detail));
-      var button = textElement('button', 'button secondary', '更新');
+      var button = textElement('button', 'button secondary', skipReason ? '无需更新' : '更新');
+      button.disabled = Boolean(skipReason);
+      if (skipReason) {
+        button.title = skipReason;
+        button.setAttribute('aria-label', name + '：' + skipReason);
+        title.appendChild(textElement('span', '', skipReason));
+      }
       button.addEventListener('click', function () {
+        if (skipReason) return;
         button.disabled = true;
         var action = kind === 'proxy' ? 'update_provider' : 'update_rule_provider';
         postJson(action, { provider: name })
-          .then(function () {
-            toast(name + ' 更新完成');
-            return kind === 'proxy' ? loadProxies() : loadRuleProviders();
+          .then(function (data) {
+            toast(data.skipped ? name + '：' + data.message : name + ' 更新完成');
+            return kind === 'proxy' ? Promise.all([loadProviders(), loadProxies()]) : loadRuleProviders();
           })
           .catch(function (error) { toast(error.message, true); })
           .finally(function () { button.disabled = false; });
@@ -535,6 +560,7 @@ var document = window.XiaomiPluginClient.document;
       renderProviders(container, data.providers || {}, 'proxy');
     }).catch(function (error) {
       state.proxyProviderNames = [];
+      state.proxyProviderSkippedCount = 0;
       container.className = 'stack empty-state';
       container.textContent = error.message;
     });
@@ -600,19 +626,31 @@ var document = window.XiaomiPluginClient.document;
   function updateAllProviders(kind, button) {
     var names = kind === 'proxy' ? state.proxyProviderNames.slice() : state.ruleProviderNames.slice();
     if (!names.length) {
-      toast(kind === 'proxy' ? '没有可更新的代理提供者' : '没有可更新的规则提供者', true);
+      toast(kind === 'proxy' ? '没有需要更新的代理提供者' : '没有可更新的规则提供者');
       return;
     }
     button.disabled = true;
     var action = kind === 'proxy' ? 'update_provider' : 'update_rule_provider';
+    var updated = 0;
+    var skipped = kind === 'proxy' ? state.proxyProviderSkippedCount : 0;
+    var failures = [];
     var chain = Promise.resolve();
     names.forEach(function (name) {
-      chain = chain.then(function () { return postJson(action, { provider: name }); });
+      chain = chain.then(function () {
+        return postJson(action, { provider: name }).then(function (data) {
+          if (data.skipped) skipped += 1;
+          else updated += 1;
+        }).catch(function (error) {
+          failures.push(name + '：' + error.message);
+        });
+      });
     });
     chain.then(function () {
-      toast('全部更新完成');
-      if (kind === 'proxy') { loadProviders(); loadProxies(); }
-      else loadRuleProviders();
+      var summary = '已更新 ' + updated + ' 个';
+      if (skipped) summary += '，跳过 ' + skipped + ' 个无需更新项';
+      if (failures.length) summary += '；失败 ' + failures.length + ' 个：' + failures.join('；');
+      toast(summary, failures.length > 0);
+      return kind === 'proxy' ? Promise.all([loadProviders(), loadProxies()]) : loadRuleProviders();
     }).catch(function (error) {
       toast(error.message, true);
     }).finally(function () { button.disabled = false; });
@@ -695,7 +733,7 @@ var document = window.XiaomiPluginClient.document;
     tab.classList.add('active');
     page.classList.add('active');
     if (pageName === 'config' && !state.configLoaded) loadConfig();
-    if (pageName === 'subscription') { loadSubscription(); loadManualNodes(); }
+    if (pageName === 'subscription') { loadSubscription(); loadManualNodes(); loadRuleProviders(); }
     if (pageName === 'proxies') loadGeoData(false);
     if (pageName === 'logs') loadLogs();
     if (fromSwipe) window.scrollTo({ top: 0, behavior: 'smooth' });

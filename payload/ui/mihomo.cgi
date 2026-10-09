@@ -199,6 +199,31 @@ case "$action" in
         provider=$(printf '%s' "$body" | jq -r '.provider // empty' 2>/dev/null || true)
         [ -n "$provider" ] || json_error "缺少代理提供者名称"
         encoded_provider=$(jq -nr --arg value "$provider" '$value | @uri')
+        provider_state=$(api_call GET "/providers/proxies/$encoded_provider" 2>/dev/null) \
+            || json_error "无法读取代理提供者状态：$provider"
+        printf '%s' "$provider_state" | jq -e 'type == "object" and (.vehicleType | type == "string")' >/dev/null 2>&1 \
+            || json_error "代理提供者状态无效：$provider"
+        skip_message=""
+        if printf '%s' "$provider_state" | jq -e '.vehicleType == "Compatible"' >/dev/null 2>&1; then
+            skip_message="内置提供者，无需单独更新"
+        elif printf '%s' "$provider_state" | jq -e '.vehicleType == "File" and (.proxies | type == "array" and length == 0)' >/dev/null 2>&1; then
+            # Only skip known empty managed files. Empty HTTP/custom providers
+            # must still be retried, and missing/corrupt files must not be hidden.
+            managed_file=""
+            case "$provider" in
+                APP-MANUAL) managed_file="$ETC_DIR/providers/app-manual.yaml" ;;
+                APP-SUBSCRIPTION) managed_file="$ETC_DIR/providers/app-subscription.yaml" ;;
+            esac
+            if [ -n "$managed_file" ] && jq -e '.proxies | type == "array" and length == 0' "$managed_file" >/dev/null 2>&1; then
+                skip_message="尚无节点，请先在订阅页导入"
+            fi
+        fi
+        if [ -n "$skip_message" ]; then
+            json_header
+            jq -n --arg provider "$provider" --arg message "$skip_message" \
+                '{ok:true,provider:$provider,skipped:true,message:$message}'
+            exit 0
+        fi
         api_call PUT "/providers/proxies/$encoded_provider" >/dev/null 2>&1 || json_error "代理提供者更新失败"
         json_header
         jq -n --arg provider "$provider" '{ok:true,provider:$provider}'

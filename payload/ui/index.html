@@ -156,23 +156,13 @@
         <div class="card-heading">
           <div>
             <h2>代理提供者</h2>
-            <p>手动更新配置中的 proxy-providers。</p>
+            <p>更新代理提供者；空的受管节点列表和内置提供者无需更新。</p>
           </div>
           <button id="updateAllProviders" class="button compact secondary">全部更新</button>
         </div>
         <div id="providers" class="stack empty-state">正在读取提供者…</div>
       </article>
 
-      <article class="card">
-        <div class="card-heading">
-          <div>
-            <h2>规则提供者</h2>
-            <p>更新配置中的 rule-providers 规则集。</p>
-          </div>
-          <button id="updateAllRuleProviders" class="button compact secondary">全部更新</button>
-        </div>
-        <div id="ruleProviders" class="stack empty-state">正在读取规则提供者…</div>
-      </article>
     </section>
 
     <section id="page-subscription" class="page">
@@ -250,6 +240,17 @@
         <div class="button-row geo-actions"><button id="importRuleProvider" class="button primary">导入规则提供者</button></div>
         <div class="privacy-note">同名导入会更新原提供者；配置先校验再重启，失败自动恢复。</div>
       </article>
+
+      <article class="card">
+        <div class="card-heading">
+          <div>
+            <h2>规则提供者</h2>
+            <p>查看和更新已导入或配置中的 rule-providers 规则集。</p>
+          </div>
+          <button id="updateAllRuleProviders" class="button compact secondary">全部更新</button>
+        </div>
+        <div id="ruleProviders" class="stack empty-state">正在读取规则提供者…</div>
+      </article>
     </section>
 
     <section id="page-config" class="page">
@@ -315,7 +316,7 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script src="client-bridge.js?v=1.7.20&amp;ui=compact-metrics-20260930"></script>
-  <script src="app.js?v=1.7.20&amp;ui=compact-metrics-20260930"></script>
+  <script src="app.js?v=1.7.20&amp;ui=providers-20261009"></script>
   <script>
     (function () {
       var document = window.XiaomiPluginClient.document;
