@@ -36,21 +36,7 @@ mihomo_listening() {
 }
 
 show_status() {
-    available=false
-    enabled=false
-    active=false
-    mihomo=false
-    docker_available && available=true
-    proxy_enabled && enabled=true
-    docker_active && active=true
-    mihomo_listening && mihomo=true
-    jq -n \
-        --argjson available "$available" \
-        --argjson enabled "$enabled" \
-        --argjson active "$active" \
-        --argjson mihomo "$mihomo" \
-        --arg proxy "$PROXY_URL" \
-        '{ok:true,available:$available,enabled:$enabled,dockerActive:$active,mihomoListening:$mihomo,proxy:$proxy}'
+    /usr/bin/python3 -B /data/plugin/.mihomo-system/docker_proxy_status.py "$PROXY_PORT"
 }
 
 restart_docker() {
@@ -92,11 +78,18 @@ disable_proxy() {
     if proxy_enabled; then
         rm -f "$DROPIN_FILE"
         restart_docker || json_error "代理配置已删除，但 Docker 重启失败"
+    else
+        # A removed drop-in may still be active in the daemon. Only act on this user's port.
+        current=$(show_status)
+        if printf '%s' "$current" | jq -e '.runtimeUsesProxy == true and .configuredElsewhere == false' >/dev/null; then
+            restart_docker || json_error "Docker 重启失败，旧代理可能仍在生效"
+        fi
     fi
     show_status
 }
 
 [ "$(id -u)" = "0" ] || json_error "Docker 代理助手需要 root 权限"
+[ "$ACTION" != status ] || { show_status; exit; }
 exec 9>"$LOCK_FILE"
 flock -x 9
 

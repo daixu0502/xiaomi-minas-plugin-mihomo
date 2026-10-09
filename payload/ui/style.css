@@ -6,6 +6,13 @@
     var(--bg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;}
 [data-minas-plugin="mihomo"] button, [data-minas-plugin="mihomo"] input, [data-minas-plugin="mihomo"] select, [data-minas-plugin="mihomo"] textarea{font: inherit;}
 [data-minas-plugin="mihomo"] button{-webkit-tap-highlight-color: transparent;}
+[data-minas-plugin="mihomo"] .docker-proxy-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0;padding:14px 0;border-block:1px solid var(--line);}
+[data-minas-plugin="mihomo"] .docker-proxy-details div{min-width:0;}
+[data-minas-plugin="mihomo"] .docker-proxy-details dt{color:var(--muted);font-size:12px;margin-bottom:6px;}
+[data-minas-plugin="mihomo"] .docker-proxy-details dd{color:var(--text);font-size:13px;font-weight:600;margin:0;overflow-wrap:anywhere;}
+[data-minas-plugin="mihomo"] #dockerProxyEndpoint{overflow-wrap:anywhere;margin-bottom:12px;}
+[data-minas-plugin="mihomo"] #dockerProxyBadge{white-space:normal;text-align:center;flex-shrink:0;max-width:110px;}
+@media(max-width:380px){[data-minas-plugin="mihomo"] .docker-proxy-details{gap:8px;}}
 [data-minas-plugin="mihomo"] .shell{width: min(920px, 100%); min-width: 0px; max-width: 100%; margin: 0px auto; padding: max(14px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));}
 [data-minas-plugin="mihomo"] h1{margin: 2px 0px 0px; font-size: 28px; letter-spacing: -0.035em;}
 [data-minas-plugin="mihomo"] .status-pill{display: flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 12px; font-weight: 700;}

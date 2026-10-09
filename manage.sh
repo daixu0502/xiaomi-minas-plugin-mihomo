@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_NAME='mihomo'
 PLUGIN_LABEL='Mihomo'
-PLUGIN_VERSION='1.7.20'
+PLUGIN_VERSION='1.7.21'
 UNINSTALL_NOTE='卸载会停止该用户的代理；若 Docker 正使用此代理，会撤销它并重启 Docker。其他用户插件和普通文件保留。'
 
 # Shared frontend; keep this section consistent across the four manage.sh files.
@@ -447,7 +447,7 @@ nas_uninstall() {
         case "$NAS_PLUGIN" in
             mihomo)
                 if ! ls /etc/sudoers.d/mihomo-docker-proxy* >/dev/null 2>&1; then
-                    rm -f /data/plugin/.mihomo-system/mihomo-docker-proxy
+                    rm -f /data/plugin/.mihomo-system/mihomo-docker-proxy /data/plugin/.mihomo-system/docker_proxy_status.py
                     rmdir /data/plugin/.mihomo-system 2>/dev/null || true
                 fi;;
             dockermanager)
@@ -707,7 +707,7 @@ jq -n \
       desc:("Mihomo " + $core_version + " 代理管理"),
       developer:"Local / MetaCubeX",
       publisher:"Local",
-      changelog:"统一六插件视觉规范、全宽桌面布局、手机深色主题与样式隔离",
+      changelog:"Docker 代理区分配置、进程生效和连通性，支持确认后重新应用",
       system:false,
       size:$size,
       port:$controller_port,
@@ -794,6 +794,11 @@ chmod 0755 /data/plugin/.mihomo-system
 docker_helper_tmp="$DOCKER_HELPER.new.$$"
 docker_sudoers_tmp="$DOCKER_SUDOERS.new.$$"
 cp "$PAYLOAD_DIR/system/mihomo-docker-proxy" "$docker_helper_tmp"
+docker_status_tmp=/data/plugin/.mihomo-system/docker_proxy_status.py.new.$$
+cp "$PAYLOAD_DIR/system/docker_proxy_status.py" "$docker_status_tmp"
+chown root:root "$docker_status_tmp"
+chmod 0644 "$docker_status_tmp"
+mv -f "$docker_status_tmp" /data/plugin/.mihomo-system/docker_proxy_status.py
 chown root:root "$docker_helper_tmp"
 chmod 0755 "$docker_helper_tmp"
 printf '%s ALL=(root) NOPASSWD: %s status %s, %s enable %s, %s disable %s\n' \

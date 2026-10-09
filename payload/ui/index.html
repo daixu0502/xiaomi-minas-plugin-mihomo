@@ -11,8 +11,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Mihomo</title>
   <link rel="icon" href="../../icon/mihomo.icon">
-  <link rel="stylesheet" href="style.css?v=1.7.20&amp;ui=compact-metrics-20260930">
-  <link rel="stylesheet" href="palette.css?v=1.7.20&amp;ui=compact-metrics-20260930">
+  <link rel="stylesheet" href="style.css?v=1.7.21&amp;ui=docker-proxy-state">
+  <link rel="stylesheet" href="palette.css?v=1.7.21&amp;ui=compact-metrics-20260930">
 </head>
 <body><div data-minas-plugin="mihomo"><div class="minas-plugin-body">
   <main class="shell">
@@ -108,9 +108,15 @@
           </div>
           <div id="dockerProxyBadge" class="mini-badge">检查中</div>
         </div>
+        <dl class="docker-proxy-details" aria-live="polite">
+          <div><dt>配置文件</dt><dd id="dockerProxyConfig">检查中</dd></div>
+          <div><dt>Docker 进程</dt><dd id="dockerProxyRuntime">检查中</dd></div>
+          <div><dt>代理连通性</dt><dd id="dockerProxyReachability">检查中</dd></div>
+        </dl>
+        <p id="dockerProxyEndpoint" class="hint">正在核对配置与实际运行状态…</p>
         <div class="button-row">
-          <button id="enableDockerProxy" class="button primary">启用 Docker 代理</button>
-          <button id="disableDockerProxy" class="button danger">关闭 Docker 代理</button>
+          <button id="enableDockerProxy" class="button primary" disabled>启用 Docker 代理</button>
+          <button id="disableDockerProxy" class="button danger" disabled>关闭 Docker 代理</button>
           <button id="refreshDockerProxy" class="button secondary">刷新状态</button>
         </div>
         <div class="notice warning docker-notice">
@@ -283,7 +289,7 @@
       </article>
     </section>
 
-    <footer id="pluginVersion">插件版本 1.7.20</footer>
+    <footer id="pluginVersion">插件版本 1.7.21</footer>
   </main>
 
   <div id="pickerBackdrop" class="mi-picker-backdrop" hidden></div>
@@ -315,8 +321,8 @@
   </section>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="client-bridge.js?v=1.7.20&amp;ui=compact-metrics-20260930"></script>
-  <script src="app.js?v=1.7.20&amp;ui=providers-20261009"></script>
+  <script src="client-bridge.js?v=1.7.21&amp;ui=compact-metrics-20260930"></script>
+  <script src="app.js?v=1.7.21&amp;ui=docker-proxy-state"></script>
   <script>
     (function () {
       var document = window.XiaomiPluginClient.document;
