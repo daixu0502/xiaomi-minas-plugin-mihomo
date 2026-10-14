@@ -14,6 +14,7 @@ fi
 BIN="$SCRIPT_DIR/mihomo"
 ETC_DIR="$PLUGIN_HOME/etc"
 VAR_DIR="$PLUGIN_HOME/var"
+[ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
 CONFIG_FILE="$ETC_DIR/config.yaml"
 SECRET_FILE="$ETC_DIR/api.secret"
 PORTS_FILE="$ETC_DIR/ports.env"
@@ -40,7 +41,7 @@ is_managed_pid() {
     managed_cmdline=$(tr '\000' ' ' < "/proc/$managed_pid/cmdline" 2>/dev/null || true)
     managed_executable=${managed_cmdline%% *}
     case "$managed_executable" in
-        "$BIN"|"$PLUGIN_HOME/src/files/mihomo")
+        "$BIN"|"$PLUGIN_HOME/src/files/mihomo"|"$SCRIPT_DIR/mihomo"|"$VAR_DIR/core/mihomo")
             return 0
             ;;
     esac
@@ -100,6 +101,8 @@ start_core() {
     export HOME="$(dirname "$(dirname "$PLUGIN_HOME")")"
     printf '\n[%s] starting Mihomo\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE"
 
+    # Any implicit cache / crash output belongs outside the verified source.
+    cd "$ETC_DIR" || return 1
     nohup "$BIN" \
         -d "$ETC_DIR" \
         -f "$CONFIG_FILE" \

@@ -10,6 +10,8 @@ PLUGIN_HOME=${PLUG_HOME_DIR:-/home/$plugin_user/plugin/mihomo}
 ETC_DIR="$PLUGIN_HOME/etc"
 VAR_DIR="$PLUGIN_HOME/var"
 BIN="$SCRIPT_DIR/mihomo"
+# Runtime updates must never replace files covered by INFO.abstract.
+[ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
 CONTROL="$PLUGIN_HOME/scripts/control"
 EDITOR="$SCRIPT_DIR/rule_provider_editor.py"
 CONFIG_FILE="$ETC_DIR/config.yaml"

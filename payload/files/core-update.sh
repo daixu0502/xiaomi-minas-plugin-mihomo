@@ -10,6 +10,8 @@ PLUGIN_HOME=${PLUG_HOME_DIR:-/home/$plugin_user/plugin/mihomo}
 ETC_DIR="$PLUGIN_HOME/etc"
 VAR_DIR="$PLUGIN_HOME/var"
 BIN="$SCRIPT_DIR/mihomo"
+# Runtime updates must never replace files covered by INFO.abstract.
+[ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
 CONTROL="$PLUGIN_HOME/scripts/control"
 CONFIG_FILE="$ETC_DIR/config.yaml"
 PORTS_FILE="$ETC_DIR/ports.env"
@@ -193,22 +195,27 @@ do_update() {
         was_running=true
     fi
 
+    CORE_DIR="$VAR_DIR/core"
+    [ ! -L "$CORE_DIR" ] && [ ! -L "$CORE_DIR/mihomo" ] || json_error "核心目录异常，拒绝更新"
+    mkdir -p "$CORE_DIR"
+    chmod 0700 "$CORE_DIR"
+    CORE_TARGET="$CORE_DIR/mihomo"
     rollback="$VAR_DIR/mihomo.core.rollback"
     cp "$BIN" "$rollback" || json_error "无法备份当前 Mihomo 核心"
     chmod 0700 "$rollback"
     if [ "$was_running" = "true" ]; then
         control_command stop >/dev/null 2>&1 || json_error "无法停止当前 Mihomo 核心"
     fi
-    if ! mv -f "$binary_tmp" "$BIN"; then
+    if ! mv -f "$binary_tmp" "$CORE_TARGET"; then
         [ "$was_running" = "true" ] && control_command start >/dev/null 2>&1 || true
         json_error "无法替换 Mihomo 核心"
     fi
     binary_tmp=""
-    chmod 0755 "$BIN"
+    chmod 0755 "$CORE_TARGET"
 
     if [ "$was_running" = "true" ] && ! control_command start >/dev/null 2>&1; then
-        cp "$rollback" "$BIN"
-        chmod 0755 "$BIN"
+        cp "$rollback" "$CORE_TARGET"
+        chmod 0755 "$CORE_TARGET"
         control_command start >/dev/null 2>&1 || true
         json_error "新核心启动失败，已恢复旧核心"
     fi

@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_NAME='mihomo'
 PLUGIN_LABEL='Mihomo'
-PLUGIN_VERSION='1.7.21'
+PLUGIN_VERSION='1.7.22'
 UNINSTALL_NOTE='卸载会停止该用户的代理；若 Docker 正使用此代理，会撤销它并重启 Docker。其他用户插件和普通文件保留。'
 
 # Shared frontend; keep this section consistent across the four manage.sh files.
@@ -574,11 +574,11 @@ core_version_of() {
     printf '%s\n' "$candidate_text" | grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?' | head -n 1
 }
 
-# A core updated from the APP lives inside SRC_DIR. Keep it when it is newer
-# than the core bundled with manage.sh, so reinstalling the plugin UI never
-# silently downgrades a successful in-app core update.
+# Preserve runtime updates outside the verified source. Migrate a newer legacy
+# in-source core before replacing src; never bake it into the new source tree.
 bundled_core_version=$(core_version_of "$stage_src/files/mihomo" || true)
-existing_core="$SRC_DIR/files/mihomo"
+existing_core="$VAR_DIR/core/mihomo"
+[ -x "$existing_core" ] || existing_core="$SRC_DIR/files/mihomo"
 if [ -x "$existing_core" ] && [ -n "$bundled_core_version" ]; then
     existing_core_arch=$(file "$existing_core" 2>/dev/null || true)
     existing_core_version=$(core_version_of "$existing_core" || true)
@@ -587,7 +587,14 @@ if [ -x "$existing_core" ] && [ -n "$bundled_core_version" ]; then
             if [ -n "$existing_core_version" ]; then
                 newest_core_version=$(printf '%s\n%s\n' "$bundled_core_version" "$existing_core_version" | sort -V | tail -n 1)
                 if [ "$newest_core_version" = "$existing_core_version" ] && [ "$existing_core_version" != "$bundled_core_version" ]; then
-                    cp "$existing_core" "$stage_src/files/mihomo"
+                    if [ "$existing_core" = "$SRC_DIR/files/mihomo" ]; then
+                        [ ! -L "$VAR_DIR/core" ] && [ ! -L "$VAR_DIR/core/mihomo" ] || fail "核心目录异常，拒绝迁移"
+                        mkdir -p "$VAR_DIR/core"
+                        chmod 0700 "$VAR_DIR/core"
+                        cp "$existing_core" "$VAR_DIR/core/.mihomo.migrate.$$"
+                        chmod 0755 "$VAR_DIR/core/.mihomo.migrate.$$"
+                        mv -f "$VAR_DIR/core/.mihomo.migrate.$$" "$VAR_DIR/core/mihomo"
+                    fi
                     echo "保留 APP 已更新的 Mihomo 核心 $existing_core_version（安装包为 $bundled_core_version）。"
                 fi
             fi
@@ -608,6 +615,7 @@ if [ -d "$old_src" ]; then
 fi
 
 INSTALLED_CORE_VERSION=$(core_version_of "$SRC_DIR/files/mihomo" || true)
+[ ! -x "$VAR_DIR/core/mihomo" ] || INSTALLED_CORE_VERSION=$(core_version_of "$VAR_DIR/core/mihomo" || true)
 [ -n "$INSTALLED_CORE_VERSION" ] || INSTALLED_CORE_VERSION="$CORE_VERSION"
 
 cp "$PAYLOAD_DIR/scripts/control" "$SCRIPTS_DIR/control"
