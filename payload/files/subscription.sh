@@ -12,7 +12,6 @@ VAR_DIR="$PLUGIN_HOME/var"
 BIN="$SCRIPT_DIR/mihomo"
 # Runtime updates must never replace files covered by INFO.abstract.
 [ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
-CONTROL="$PLUGIN_HOME/scripts/control"
 CONFIG_FILE="$ETC_DIR/config.yaml"
 URL_FILE="$ETC_DIR/subscription.url"
 META_FILE="$ETC_DIR/subscription.meta.json"
@@ -44,6 +43,8 @@ json_error() {
     exit 0
 }
 
+. "$SCRIPT_DIR/update-common.sh"
+
 validate_url() {
     candidate=$1
     [ -n "$candidate" ] || json_error "订阅 URL 不能为空"
@@ -65,13 +66,16 @@ download_provider() {
     provider_tmp="$VAR_DIR/subscription.provider.$$"
     download_log="$VAR_DIR/subscription-download.$$"
 
-    if ! curl --silent --show-error --fail --location \
+    task_progress downloading 12 "正在下载订阅（有限超时与重试）"
+    download_code=0
+    download_http=$(curl --silent --show-error --fail --location \
         --proto '=https' --proto-redir '=https' \
-        --connect-timeout 15 --max-time 90 --retry 2 \
+        --connect-timeout 8 --max-time 40 --retry 1 --retry-delay 1 --retry-max-time 45 \
+        --noproxy '*' --write-out '%{http_code}' \
         --user-agent 'clash.meta/v1.19.31' \
-        --output "$raw_tmp" -- "$subscription_url" > "$download_log" 2>&1; then
-        json_error "订阅下载失败，请检查 URL、网络或订阅状态"
-    fi
+        --output "$raw_tmp" -- "$subscription_url" 2> "$download_log") || download_code=$?
+    [ "$download_code" = 0 ] || download_failure "$download_code" "$download_http" "订阅下载失败"
+    task_progress parsing 42 "下载完成，正在提取节点"
     [ -s "$raw_tmp" ] || json_error "订阅返回内容为空"
     [ "$(wc -c < "$raw_tmp")" -le 10485760 ] || json_error "订阅内容超过 10 MiB"
 
@@ -139,12 +143,6 @@ write_metadata() {
     chmod 0600 "$META_FILE"
 }
 
-restart_core() {
-    PLUG_USER="$plugin_user" PLUG_NAME=mihomo \
-    PLUG_HOME_DIR="$PLUGIN_HOME" PLUG_SRC_DIR="$SRC_DIR" \
-    "$CONTROL" restart
-}
-
 do_status() {
     if [ -s "$URL_FILE" ] && [ -s "$PROVIDER_FILE" ]; then
         if [ -s "$META_FILE" ] && jq empty "$META_FILE" >/dev/null 2>&1; then
@@ -158,19 +156,19 @@ do_status() {
 }
 
 do_import() {
+    operation_lock
     subscription_url=$(cat)
     validate_url "$subscription_url"
     download_provider "$subscription_url"
     ensure_empty_provider "$MANUAL_FILE"
-    activate_candidate_provider
 
     config_tmp="$VAR_DIR/config.subscription.$$"
     test_log="$VAR_DIR/subscription-test.$$"
-    write_managed_config "$config_tmp"
+    task_progress validating 62 "正在校验订阅节点与受管配置"
+    write_managed_config "$config_tmp" "$provider_tmp" "$MANUAL_FILE"
     chmod 0600 "$config_tmp"
 
-    if ! "$BIN" -t -d "$ETC_DIR" -f "$config_tmp" > "$test_log" 2>&1; then
-        restore_provider
+    if ! "$BIN" -t -d "$PLUGIN_HOME" -f "$config_tmp" > "$test_log" 2>&1; then
         json_error "订阅节点无法通过 Mihomo 校验，原配置未修改"
     fi
 
@@ -179,45 +177,56 @@ do_import() {
         chmod 0600 "$BEFORE_FILE"
     fi
     cp "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak"
+    activate_candidate_provider
+    write_managed_config "$config_tmp"
     mv -f "$config_tmp" "$CONFIG_FILE"
     config_tmp=""
-    printf '%s\n' "$subscription_url" > "$URL_FILE"
-    chmod 0600 "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak" "$URL_FILE"
+    chmod 0600 "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak"
 
-    if ! restart_core >/dev/null 2>&1; then
+    if ! activation=$(hot_apply config); then
         cp "$ETC_DIR/config.yaml.bak" "$CONFIG_FILE"
         restore_provider
-        rm -f "$URL_FILE" "$META_FILE"
-        restart_core >/dev/null 2>&1 || true
-        json_error "订阅通过校验但核心重启失败，已恢复原配置"
+        hot_apply config >/dev/null 2>&1 || true
+        hot_error=$(printf '%s' "$activation" | jq -r '.error // "内核接口不可用"')
+        json_error "订阅热加载失败，已恢复原配置：$hot_error"
     fi
 
+    printf '%s\n' "$subscription_url" > "$URL_FILE"
+    chmod 0600 "$URL_FILE"
     write_metadata "$subscription_url"
     jq -n --argjson count "$(grep -Ec '^[[:space:]]*-[[:space:]]' "$PROVIDER_FILE" || true)" \
-        '{ok:true,imported:true,proxyCount:$count}'
+        '{ok:true,imported:true,proxyCount:$count,restarted:false}'
 }
 
 do_update() {
+    operation_lock
     [ -s "$URL_FILE" ] || json_error "尚未保存订阅 URL，请先导入"
     subscription_url=$(tr -d '\r\n' < "$URL_FILE")
     validate_url "$subscription_url"
     download_provider "$subscription_url"
-    activate_candidate_provider
     test_log="$VAR_DIR/subscription-test.$$"
+    if [ -f "$PROVIDER_FILE" ] && cmp -s "$provider_tmp" "$PROVIDER_FILE"; then
+        write_metadata "$subscription_url"
+        jq -n --argjson count "$(grep -Ec '^[[:space:]]*-[[:space:]]' "$PROVIDER_FILE" || true)" \
+            '{ok:true,updated:true,unchanged:true,proxyCount:$count,restarted:false}'
+        return
+    fi
 
-    if ! "$BIN" -t -d "$ETC_DIR" -f "$CONFIG_FILE" > "$test_log" 2>&1; then
-        restore_provider
+    task_progress validating 65 "正在校验新节点，旧节点继续运行"
+    if ! "$BIN" -t -d "$ETC_DIR" -f "$provider_tmp" > "$test_log" 2>&1; then
         json_error "更新后的订阅无法通过 Mihomo 校验，已保留旧节点"
     fi
-    if ! restart_core >/dev/null 2>&1; then
+    activate_candidate_provider
+    if ! activation=$(hot_apply subscription); then
         restore_provider
-        restart_core >/dev/null 2>&1 || true
-        json_error "更新后核心启动失败，已恢复旧节点"
+        hot_apply subscription >/dev/null 2>&1 || true
+        hot_error=$(printf '%s' "$activation" | jq -r '.error // "内核接口不可用"')
+        json_error "节点热更新失败，已恢复旧节点：$hot_error"
     fi
 
     write_metadata "$subscription_url"
     jq -n --argjson count "$(grep -Ec '^[[:space:]]*-[[:space:]]' "$PROVIDER_FILE" || true)" \
-        '{ok:true,updated:true,proxyCount:$count}'
+        '{ok:true,updated:true,proxyCount:$count,restarted:false}'
 }
 
 case "${1:-status}" in

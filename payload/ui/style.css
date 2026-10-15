@@ -172,3 +172,14 @@
 @media (prefers-color-scheme: dark){
 [data-minas-plugin="mihomo"]:not(.desktop-client) .mi-picker-option.selected .mi-picker-option-check{color: rgb(8, 43, 41);}
 }
+[data-minas-plugin="mihomo"] .update-task-panel { padding:16px 20px; min-width:0; margin-bottom:16px; }
+[data-minas-plugin="mihomo"] .update-task-panel[hidden] { display:none !important; }
+[data-minas-plugin="mihomo"] .update-task-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+[data-minas-plugin="mihomo"] .update-task-heading strong { min-width:0; overflow-wrap:anywhere; }
+[data-minas-plugin="mihomo"] .update-task-heading span { font-size:12px; opacity:.75; flex-shrink:0; }
+[data-minas-plugin="mihomo"] #updateTaskProgress { display:block; width:100%; height:6px; margin:12px 0; border:0; border-radius:8px; overflow:hidden; accent-color:var(--primary,#596ee9); }
+[data-minas-plugin="mihomo"] #updateTaskProgress::-webkit-progress-bar { background:rgba(128,138,160,.16); border-radius:8px; }
+[data-minas-plugin="mihomo"] #updateTaskProgress::-webkit-progress-value { background:var(--primary,#596ee9); border-radius:8px; }
+[data-minas-plugin="mihomo"] #updateTaskMessage { margin:0; overflow-wrap:anywhere; word-break:break-word; font-size:13px; line-height:1.6; }
+[data-minas-plugin="mihomo"] .task-failed #updateTaskMessage { color:var(--danger,#ce4654); }
+

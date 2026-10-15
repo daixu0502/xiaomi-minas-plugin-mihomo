@@ -5,6 +5,7 @@ DROPIN_DIR=/etc/systemd/system/docker.service.d
 DROPIN_FILE="$DROPIN_DIR/90-mihomo-proxy.conf"
 LOCK_FILE=/run/mihomo-docker-proxy.lock
 ACTION=${1:-status}
+FORCE_CHECK=${3:-}
 PROXY_PORT=${2:-}
 case "$PROXY_PORT" in ''|*[!0-9]*) PROXY_PORT=0 ;; esac
 [ "$PROXY_PORT" -ge 1024 ] 2>/dev/null && [ "$PROXY_PORT" -le 65535 ] 2>/dev/null || PROXY_PORT=0
@@ -36,7 +37,7 @@ mihomo_listening() {
 }
 
 show_status() {
-    /usr/bin/python3 -B /data/plugin/.mihomo-system/docker_proxy_status.py "$PROXY_PORT"
+    /usr/bin/python3 -B /data/plugin/.mihomo-system/docker_proxy_status.py "$PROXY_PORT" "$FORCE_CHECK"
 }
 
 restart_docker() {
@@ -90,6 +91,7 @@ disable_proxy() {
 
 [ "$(id -u)" = "0" ] || json_error "Docker 代理助手需要 root 权限"
 [ "$ACTION" != status ] || { show_status; exit; }
+FORCE_CHECK=fresh
 exec 9>"$LOCK_FILE"
 flock -x 9
 

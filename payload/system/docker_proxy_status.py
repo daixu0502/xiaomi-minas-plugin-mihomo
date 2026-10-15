@@ -1,13 +1,18 @@
 """Read-only Docker proxy diagnostics. Never restart services or expose credentials."""
 import json
+import hashlib
+import os
 import socket
+import stat
 import subprocess
 import sys
 import time
+import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
 DROPIN = Path('/etc/systemd/system/docker.service.d/90-mihomo-proxy.conf')
+PROBE_CACHE = Path('/run')
 
 
 def run(args, timeout=2):
@@ -75,7 +80,36 @@ def probe(proxy):
         return False, 'upstream_failed'
 
 
-def status(port):
+def cached_probe(proxy, force=False):
+    """Only cache the external reachability test, not Docker's effective state."""
+    path = PROBE_CACHE / ('mihomo-proxy-probe-' + hashlib.sha256(proxy.encode()).hexdigest()[:20] + '.json')
+    if not force:
+        try:
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(fd, 'rb') as stream:
+                metadata = os.fstat(stream.fileno())
+                if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o077 or metadata.st_size > 4096:
+                    raise ValueError('invalid probe cache')
+                data = json.load(stream)
+            if (isinstance(data,dict) and type(data.get('at')) in (int,float) and 0 <= time.monotonic()-data['at'] < 15 and
+                    data.get('status') in ('ok','http_error','upstream_failed','probe_unavailable') and
+                    (data.get('reachable') is None or type(data.get('reachable')) is bool)):
+                return data['reachable'], data['status']
+        except (OSError,ValueError,KeyError,TypeError): pass
+    result = probe(proxy)
+    if os.geteuid() == 0:
+        try:
+            fd, temp = tempfile.mkstemp(prefix='.mihomo-probe-', dir=PROBE_CACHE)
+            try:
+                with os.fdopen(fd,'w') as stream:json.dump({'at':time.monotonic(),'reachable':result[0],'status':result[1]},stream)
+                os.replace(temp,path)
+            finally:
+                if os.path.exists(temp):os.unlink(temp)
+        except OSError: pass
+    return result
+
+
+def status(port, force=False):
     proxy = 'http://127.0.0.1:' + str(port)
     try:
         config = DROPIN.read_text()
@@ -108,7 +142,7 @@ def status(port):
     result['mihomoListening'] = listening(port)
     if configured or result['runtimeUsesProxy']:
         if result['mihomoListening']:
-            result['proxyReachable'], result['probeStatus'] = probe(proxy)
+            result['proxyReachable'], result['probeStatus'] = cached_probe(proxy, force)
         else:
             result.update(proxyReachable=False, probeStatus='not_listening')
     if not result['available']:
@@ -138,4 +172,4 @@ if __name__ == '__main__':
     if not 1024 <= port <= 65535:
         print(json.dumps(dict(ok=False, error='代理端口无效')))
     else:
-        print(json.dumps(status(port), ensure_ascii=False))
+        print(json.dumps(status(port, len(sys.argv)>2 and sys.argv[2]=='fresh'), ensure_ascii=False))

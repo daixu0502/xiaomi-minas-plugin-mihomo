@@ -4,6 +4,8 @@
 
 write_managed_config() {
     managed_config_target=$1
+    managed_subscription_path=$(printf '%s' "${2:-./providers/app-subscription.yaml}" | jq -Rs .)
+    managed_manual_path=$(printf '%s' "${3:-./providers/app-manual.yaml}" | jq -Rs .)
     managed_mixed_port=$(sed -n 's/^MIXED_PORT=\([0-9][0-9]*\)$/\1/p' "$PLUGIN_HOME/etc/ports.env" 2>/dev/null | head -n 1)
     [ -n "$managed_mixed_port" ] || managed_mixed_port=7890
     cat > "$managed_config_target" <<MANAGED_CONFIG
@@ -19,14 +21,14 @@ ipv6: false
 proxy-providers:
   APP-SUBSCRIPTION:
     type: file
-    path: ./providers/app-subscription.yaml
+    path: $managed_subscription_path
     health-check:
       enable: true
       url: https://www.gstatic.com/generate_204
       interval: 300
   APP-MANUAL:
     type: file
-    path: ./providers/app-manual.yaml
+    path: $managed_manual_path
     health-check:
       enable: true
       url: https://www.gstatic.com/generate_204

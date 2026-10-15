@@ -23,7 +23,7 @@ class StatusTests(unittest.TestCase):
                        LoadState='not-found' if unavailable else 'loaded')
         with patch.object(module, 'DROPIN', source), patch.object(module, 'service', side_effect=[service, dict(service, MainPID='456' if changed else '123')]), \
              patch.object(module, 'runtime_proxy', side_effect=runtime if isinstance(runtime, Exception) else None, return_value=runtime), \
-             patch.object(module, 'listening', return_value=listening), patch.object(module, 'probe', return_value=probe) as check:
+             patch.object(module, 'listening', return_value=listening), patch.object(module, 'cached_probe', return_value=probe) as check:
             result = module.status(7890)
         self.assertEqual(result['enabled'], result['configured'])
         return result, check.call_count

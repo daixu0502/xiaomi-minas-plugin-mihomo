@@ -19,8 +19,95 @@ var document = window.XiaomiPluginClient.document;
     mixedPort: 7890
   };
   var providerBusy = {proxy:false,rule:false};
-  function syncProviderUpdate(kind){var button=byId(kind==='proxy'?'updateAllProviders':'updateAllRuleProviders');var names=kind==='proxy'?state.proxyProviderNames:state.ruleProviderNames;button.disabled=providerBusy[kind]||!names.length;button.setAttribute('aria-busy',String(providerBusy[kind]));}
+  function syncProviderUpdate(kind){var button=byId(kind==='proxy'?'updateAllProviders':'updateAllRuleProviders');var names=kind==='proxy'?state.proxyProviderNames:state.ruleProviderNames;button.disabled=updateTaskBusy()||providerBusy[kind]||!names.length;button.setAttribute('aria-busy',String(providerBusy[kind]));}
   var toastTimer;
+  var currentUpdateTask = null;
+  var updateMonitors = {};
+  var updateTimers = [];
+  var updatePageClosed = false;
+  var savedUpdateButtons = [];
+
+  function updateTaskBusy() { return Boolean(currentUpdateTask && /^(queued|running)$/.test(currentUpdateTask.status)); }
+
+  function renderUpdateTask(task) {
+    var wasBusy = updateTaskBusy();
+    currentUpdateTask = task || null;
+    var busy = updateTaskBusy();
+    var panel = byId('updateTaskPanel');
+    panel.hidden = !task;
+    if (task) {
+      byId('updateTaskTitle').textContent = task.title || '后台更新';
+      byId('updateTaskStage').textContent = task.status === 'failed' ? '失败' : (task.status === 'succeeded' ? '完成' : '进行中');
+      byId('updateTaskProgress').value = task.percent || 0;
+      byId('updateTaskProgress').setAttribute('aria-label', '任务阶段进度 ' + (task.percent || 0) + '%');
+      var elapsed = task.elapsedSeconds == null ? Math.max(0, Date.now() / 1000 - task.createdAt) : task.elapsedSeconds;
+      byId('updateTaskMessage').textContent = (task.error || task.message || '正在执行') + ' · ' + Math.round(elapsed) + ' 秒';
+      panel.classList.toggle('task-failed', task.status === 'failed');
+      panel.setAttribute('aria-busy', String(busy));
+    }
+    if (busy && !wasBusy) {
+      savedUpdateButtons = Array.prototype.slice.call(document.querySelectorAll('#importSubscription,#updateSubscription,#updateGeoData,#applyGeoPolicy,#importRuleProvider,#updateAllProviders,#updateAllRuleProviders,#applyCoreUpdate,#saveConfig,#startButton,#stopButton,#restartButton,[data-update-provider]')).map(function (button) {
+        return { button: button, disabled: button.disabled };
+      });
+    }
+    if (busy) savedUpdateButtons.forEach(function (entry) { if (!entry.button.disabled) entry.button.disabled = true; });
+    if (!busy && wasBusy) {
+      savedUpdateButtons.forEach(function (entry) { entry.button.disabled = entry.disabled; });
+      savedUpdateButtons = [];
+      byId('updateSubscription').disabled = !state.subscriptionConfigured;
+      syncProviderUpdate('proxy'); syncProviderUpdate('rule');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-update-provider]'), function (button) { button.disabled = button.getAttribute('data-provider-skipped') === 'true'; });
+    }
+  }
+
+  var updateButtonObserver = new MutationObserver(function () {
+    if (updateTaskBusy()) savedUpdateButtons.forEach(function (entry) { if (!entry.button.disabled) entry.button.disabled = true; });
+  });
+  updateButtonObserver.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['disabled'] });
+  window.addEventListener('unmount', function () {
+    updatePageClosed = true; updateTimers.forEach(clearTimeout); updateButtonObserver.disconnect();
+  }, { once: true });
+  window.addEventListener('pagehide',function(){updatePageClosed=true;updateTimers.forEach(clearTimeout);updateButtonObserver.disconnect();},{once:true});
+
+  function monitorUpdateTask(task) {
+    if (updateMonitors[task.id]) return updateMonitors[task.id];
+    renderUpdateTask(task);
+    var promise = new Promise(function (resolve, reject) {
+      var failures = 0;
+      function poll() {
+        if (updatePageClosed) return;
+        if (document.hidden) { updateTimers.push(setTimeout(poll,5000)); return; }
+        postJson('update_task_status', { id: task.id }).then(function (packet) {
+          if (!packet.task) throw new Error('后台任务状态暂不可用');
+          failures = 0;
+          renderUpdateTask(packet.task);
+          if (packet.task.status === 'succeeded') { resolve(packet.task.result || {}); return; }
+          if (packet.task.status === 'failed') { reject(new Error(packet.task.error || '后台更新失败')); return; }
+          updateTimers.push(setTimeout(poll, 1200));
+        }).catch(function (error) {
+          failures++;
+          byId('updateTaskMessage').textContent = '暂时无法读取进度，后台任务不受影响，正在重试…';
+          if (failures >= 15) { reject(new Error('连接中断，后台任务可能仍在执行；重新打开页面可查看进度')); return; }
+          updateTimers.push(setTimeout(poll, 2000));
+        });
+      }
+      poll();
+    });
+    updateMonitors[task.id] = promise;
+    promise.then(function () { delete updateMonitors[task.id]; }, function () { delete updateMonitors[task.id]; });
+    return promise;
+  }
+
+  function loadUpdateTask() {
+    return request('update_task_status').then(function (packet) {
+      if (!packet.task) return;
+      if (/^(queued|running)$/.test(packet.task.status)) {
+        monitorUpdateTask(packet.task).then(function () {
+          refreshPageData(); loadStatus(false);
+        }).catch(function (error) { toast(error.message, true); });
+      } else renderUpdateTask(packet.task);
+    }).catch(function () { /* Old versions or a disconnected page may not expose jobs yet. */ });
+  }
 
   function byId(id) { return document.getElementById(id); }
 
@@ -243,10 +330,21 @@ var document = window.XiaomiPluginClient.document;
       options: settings
     })
       .then(function (response) {
-        return response.json().catch(function () { throw new Error('设备返回了无法解析的数据'); });
+        return response.text().then(function (text) {
+          var data;
+          try { data = JSON.parse(text); }
+          catch (error) {
+            if (response.status === 504 || response.status === 502) throw new Error('网关超时或连接中断（HTTP ' + response.status + '），请查看后台任务进度');
+            throw new Error('设备返回了非 JSON 响应（HTTP ' + response.status + '），请重新打开插件检查授权');
+          }
+          if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('设备返回了无效的接口数据');
+          if (!response.ok && data.ok !== false) throw new Error('请求失败（HTTP ' + response.status + '）');
+          return data;
+        });
       })
       .then(function (data) {
         if (data && data.ok === false) throw new Error(data.error || '操作失败');
+        if (data && data.accepted && data.task) return monitorUpdateTask(data.task);
         return data;
       });
   }
@@ -319,7 +417,7 @@ var document = window.XiaomiPluginClient.document;
   }
 
   function fetchDockerProxy(showMessage) {
-    return request('docker_proxy_status').then(function (data) {
+    return (showMessage ? postJson('docker_proxy_status',{force:true}) : request('docker_proxy_status')).then(function (data) {
       state.dockerProxyAvailable = Boolean(data.available);
       state.dockerProxyEnabled = Boolean(data.configured || data.runtimeUsesProxy);
       var badge = byId('dockerProxyBadge');
@@ -559,7 +657,9 @@ var document = window.XiaomiPluginClient.document;
       }
       title.appendChild(textElement('span', '', detail));
       var button = textElement('button', 'button secondary', skipReason ? '无需更新' : '更新');
-      button.disabled = Boolean(skipReason);
+      button.setAttribute('data-update-provider', '1');
+      button.setAttribute('data-provider-skipped', String(Boolean(skipReason)));
+      button.disabled = updateTaskBusy() || Boolean(skipReason);
       if (skipReason) {
         button.title = skipReason;
         button.setAttribute('aria-label', name + '：' + skipReason);
@@ -696,7 +796,7 @@ var document = window.XiaomiPluginClient.document;
       var badge = byId('subscriptionBadge');
       badge.className = 'mini-badge' + (data.configured ? ' ready' : '');
       badge.textContent = data.configured ? '已配置' : '未配置';
-      byId('updateSubscription').disabled = !data.configured;
+      byId('updateSubscription').disabled = updateTaskBusy() || !data.configured;
       if (data.configured) {
         var pieces = [];
         if (data.source) pieces.push(data.source);
@@ -768,10 +868,13 @@ var document = window.XiaomiPluginClient.document;
     page.classList.add('active');
     if (pageName === 'config' && !state.configLoaded) loadConfig();
     if (pageName === 'subscription') { loadSubscription(); loadManualNodes(); loadRuleProviders(); }
-    if (pageName === 'proxies') loadGeoData(false);
+    if (pageName === 'proxies') { loadProxies(); loadProviders(); loadGeoData(false); }
+    if (pageName === 'overview') { loadStatus(false);loadDockerProxy(false);loadNetworkAccess(false);loadCoreUpdate(false); }
     if (pageName === 'logs') loadLogs();
     if (fromSwipe) window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+
+  function refreshPageData(){var active=document.querySelector('.tab.active');if(active)activatePage(active.dataset.page,false);}
 
   document.querySelectorAll('.tab').forEach(function (tab) {
     tab.addEventListener('click', function () { activatePage(tab.dataset.page, false); });
@@ -877,10 +980,10 @@ var document = window.XiaomiPluginClient.document;
   });
   byId('updateGeoData').addEventListener('click', function () {
     var button = this;
-    confirmAction('将从官方仓库下载并校验 GeoIP、GeoSite；Mihomo 可能自动重启。是否继续？', { title: '更新 Geo 数据' }, function () {
+    confirmAction('后台下载并校验 GeoIP、GeoSite。内容未变化不重启；数据变化时需重启内核以刷新 Geo 缓存。是否继续？', { title: '更新 Geo 数据' }, function () {
       button.disabled = true;
-      postJson('geodata_update', {}).then(function () {
-        toast('GeoIP 和 GeoSite 已更新');
+      postJson('geodata_update', {}).then(function (data) {
+        toast(data.unchanged ? 'Geo 数据未变化，无需重启' : (data.restarted ? 'Geo 数据已更新，内核缓存已刷新' : 'Geo 数据已保存'));
         return loadGeoData(false);
       }).then(function () {
         loadStatus(false);
@@ -894,7 +997,7 @@ var document = window.XiaomiPluginClient.document;
     var policySelect = byId('geoPolicy');
     var policyName = policySelect.options[policySelect.selectedIndex].text;
     var button = this;
-    confirmAction('将备份配置并应用“' + policyName + '”，随后校验并重启 Mihomo。是否继续？', { title: '应用 Geo 策略' }, function () {
+    confirmAction('将备份配置并应用“' + policyName + '”，随后校验并热加载，不重启内核。是否继续？', { title: '应用 Geo 策略' }, function () {
       button.disabled = true;
       postJson('geodata_apply_policy', { policy: policySelect.value }).then(function () {
         state.configLoaded = false;
@@ -922,7 +1025,7 @@ var document = window.XiaomiPluginClient.document;
       return;
     }
     var button = this;
-    confirmAction('首次导入会备份并替换当前 config.yaml，然后重启 Mihomo。是否继续？', { title: '导入订阅' }, function () {
+    confirmAction('首次导入会备份并替换当前 config.yaml，然后热加载配置。是否继续？', { title: '导入订阅' }, function () {
       button.disabled = true;
       postJson('subscription_import', { url: subscriptionUrl }).then(function (data) {
         byId('subscriptionUrl').value = '';
@@ -988,7 +1091,7 @@ var document = window.XiaomiPluginClient.document;
       return;
     }
     var button = this;
-    confirmAction('将写入规则提供者并重启 Mihomo，是否继续？', { title: '导入规则提供者' }, function () {
+    confirmAction('将写入规则提供者并热加载配置，不重启内核。是否继续？', { title: '导入规则提供者' }, function () {
       button.disabled = true;
       postJson('rule_provider_import', {
         name: name,
@@ -1108,13 +1211,8 @@ var document = window.XiaomiPluginClient.document;
   initPickers();
   initConfirmDialog();
   loadStatus(false);
-  loadProxies();
-  loadProviders();
-  loadRuleProviders();
-  loadSubscription();
-  loadManualNodes();
   loadDockerProxy(false);
   loadNetworkAccess(false);
   loadCoreUpdate(false);
-  loadGeoData(false);
+  loadUpdateTask();
 }());

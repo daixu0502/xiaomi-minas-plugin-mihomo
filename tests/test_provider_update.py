@@ -5,40 +5,43 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import threading
+import time
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 SOURCE = Path(os.environ.get('CGI_TEST_SOURCE', str(Path(__file__).resolve().parents[1] / 'payload/ui/mihomo.cgi')))
-MOCK_CURL = '''#!/usr/bin/env python3
-import json, os, pathlib, sys
-p = pathlib.Path(os.environ['PROVIDER_TEST_DIR'])
-args = sys.argv[1:]
-method = args[args.index('-X') + 1]
-with (p / 'calls').open('a') as f:
-    f.write(method + '\\n')
-if method == 'GET':
-    if (p / 'get-fails').exists(): sys.exit(22)
-    print((p / 'provider.json').read_text())
-else:
-    sys.exit(22 if (p / 'put-fails').exists() else 0)
-'''
-
-
 @unittest.skipUnless(shutil.which('jq'), 'jq is required')
 class ProviderUpdateTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='mihomo-provider-test-')
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        (self.root / 'var').mkdir()
+        (self.root / 'src/files').mkdir(parents=True)
+        shutil.copy2(SOURCE.parent.parent / 'files/update_tasks.py', self.root / 'src/files/update_tasks.py')
         (self.root / 'etc/providers').mkdir(parents=True)
         (self.root / 'etc/api.secret').write_text('test-only')
-        (self.root / 'etc/ports.env').write_text('CONTROLLER_PORT=9090\n')
-        mock = self.root / 'curl'
-        mock.write_text(MOCK_CURL)
-        mock.chmod(0o755)
+        root = self.root
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args): pass
+            def do_GET(self):
+                with (root / 'calls').open('a') as out: out.write('GET\n')
+                self.send_response(500 if (root / 'get-fails').exists() else 200)
+                self.end_headers(); self.wfile.write((root / 'provider.json').read_bytes())
+            def do_PUT(self):
+                with (root / 'calls').open('a') as out: out.write('PUT\n')
+                self.send_response(500 if (root / 'put-fails').exists() else 204)
+                self.end_headers()
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+        self.addCleanup(server.server_close); self.addCleanup(server.shutdown)
+        (self.root / 'etc/ports.env').write_text('CONTROLLER_PORT=%d\n' % server.server_port)
         self.cgi = self.root / 'mihomo.cgi'
         source = SOURCE.read_text()
         self.assertIn('PLUGIN_HOME="/home/$plugin_user/plugin/mihomo"', source)
-        self.cgi.write_text(source.replace('PLUGIN_HOME="/home/$plugin_user/plugin/mihomo"', 'PLUGIN_HOME="' + str(self.root) + '"', 1))
+        source = source.replace('PLUGIN_HOME="/home/$plugin_user/plugin/mihomo"', 'PLUGIN_HOME="' + str(self.root) + '"', 1)
+        self.cgi.write_text(source.replace('SRC_DIR=$(dirname "$SCRIPT_DIR")', 'SRC_DIR="' + str(self.root / 'src') + '"', 1))
 
     def call(self, name='APP-MANUAL', vehicle='File', nodes=None, file_text='{"proxies":[]}', failure=None):
         (self.root / 'provider.json').write_text(json.dumps({'vehicleType':vehicle,'proxies':nodes or []}))
@@ -54,6 +57,14 @@ class ProviderUpdateTests(unittest.TestCase):
         result = subprocess.run(['/bin/sh', str(self.cgi)], input=body, capture_output=True, env=env, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         response = json.loads(result.stdout.split(b'\r\n\r\n', 1)[1])
+        self.assertTrue(response['ok'] and response['accepted'], response)
+        path = self.root / 'var/update-tasks' / (response['task']['id'] + '.json')
+        for _ in range(100):
+            task = json.loads(path.read_text())
+            if task['status'] in ('succeeded', 'failed'):break
+            time.sleep(.05)
+        self.assertIn(task['status'], ('succeeded', 'failed'), task)
+        response = task.get('result', {'ok':False, 'error':task.get('error')})
         calls = (self.root / 'calls').read_text().splitlines()
         return response, calls
 
@@ -75,7 +86,7 @@ class ProviderUpdateTests(unittest.TestCase):
     def test_populated_manual_updates(self):
         result, calls = self.call(nodes=[{'name':'test'}], file_text='{"proxies":[{"name":"test"}]}')
         self.assertTrue(result['ok'])
-        self.assertNotIn('skipped', result)
+        self.assertFalse(result.get('skipped'))
         self.assertEqual(calls, ['GET','PUT'])
 
     def test_empty_http_provider_is_retried(self):

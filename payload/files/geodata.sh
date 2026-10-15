@@ -30,9 +30,10 @@ release_tmp=""
 config_tmp=""
 test_log=""
 meta_tmp=""
+download_log=""
 
 cleanup() {
-    for cleanup_file in "$geoip_tmp" "$geosite_tmp" "$release_tmp" "$config_tmp" "$test_log" "$meta_tmp"; do
+    for cleanup_file in "$geoip_tmp" "$geosite_tmp" "$release_tmp" "$config_tmp" "$test_log" "$meta_tmp" "$download_log"; do
         [ -n "$cleanup_file" ] && rm -f "$cleanup_file"
     done
     return 0
@@ -44,15 +45,21 @@ json_error() {
     exit 0
 }
 
+. "$SCRIPT_DIR/update-common.sh"
+
 download_https() {
     download_url=$1
     download_target=$2
-    curl --silent --show-error --fail --location \
+    download_log="$VAR_DIR/geodata-download.$$"
+    download_code=0
+    download_http=$(curl --silent --show-error --fail --location \
         --proto '=https' --proto-redir '=https' \
-        --connect-timeout 15 --max-time 300 --retry 3 --retry-delay 2 \
+        --connect-timeout 8 --max-time 180 --retry 1 --retry-delay 1 --retry-max-time 200 \
+        --noproxy '' --write-out '%{http_code}' \
         --user-agent 'xiaomi-storage-mihomo-plugin/1.5.0' \
         --proxy "http://127.0.0.1:$MIXED_PORT" \
-        --output "$download_target" -- "$download_url" >/dev/null 2>&1
+        --output "$download_target" -- "$download_url" 2> "$download_log") || download_code=$?
+    [ "$download_code" = 0 ] || download_failure "$download_code" "$download_http" "Geo 数据下载失败"
 }
 
 fetch_release_metadata() {
@@ -79,6 +86,12 @@ download_verified_file() {
     expected_sha=$(printf '%s' "${asset_digest#sha256:}" | tr 'A-F' 'a-f')
     [ "${#expected_sha}" = "64" ] || json_error "$remote_name 的 SHA-256 格式无效"
     case "$expected_sha" in *[!0-9a-f]*) json_error "$remote_name 的 SHA-256 格式无效" ;; esac
+    case "$remote_name" in geoip.dat) local_file="$GEOIP_FILE" ;; geosite.dat) local_file="$GEOSITE_FILE" ;; esac
+    if [ -s "$local_file" ] && [ "$(sha256sum "$local_file" | awk '{print $1}')" = "$expected_sha" ]; then
+        cp "$local_file" "$output_file"
+        actual_sha=$expected_sha
+        return
+    fi
     download_https "$asset_url" "$output_file" \
         || json_error "$remote_name 通过 PROXY 下载失败，请检查 Mihomo 节点"
     file_size=$(wc -c < "$output_file")
@@ -89,12 +102,14 @@ download_verified_file() {
 }
 
 control_status() (
+    [ ! -e "/proc/$$/fd/8" ] || exec 8>&-
     [ ! -e "/proc/$$/fd/9" ] || exec 9>&-
     PLUG_USER="$plugin_user" PLUG_NAME=mihomo PLUG_HOME_DIR="$PLUGIN_HOME" PLUG_SRC_DIR="$SRC_DIR" \
         "$CONTROL" status >/dev/null 2>&1
 )
 
 control_restart() (
+    [ ! -e "/proc/$$/fd/8" ] || exec 8>&-
     [ ! -e "/proc/$$/fd/9" ] || exec 9>&-
     PLUG_USER="$plugin_user" PLUG_NAME=mihomo PLUG_HOME_DIR="$PLUGIN_HOME" PLUG_SRC_DIR="$SRC_DIR" \
         "$CONTROL" restart >/dev/null 2>&1
@@ -136,6 +151,7 @@ restore_file() {
 }
 
 do_update() {
+    operation_lock
     command -v flock >/dev/null 2>&1 || json_error "设备缺少 flock，无法安全更新 Geo 数据"
     mkdir -p "$ETC_DIR" "$VAR_DIR"
     exec 9>"$VAR_DIR/geodata-update.lock"
@@ -144,12 +160,22 @@ do_update() {
     geoip_tmp="$VAR_DIR/GeoIP.dat.$$"
     geosite_tmp="$VAR_DIR/GeoSite.dat.$$"
     test_log="$VAR_DIR/geodata-test.$$"
+    task_progress release 8 "正在查询官方 Geo 数据版本"
     fetch_release_metadata
+    task_progress downloading_geoip 20 "正在下载并校验 GeoIP（大文件可能需要等待）"
     download_verified_file geoip.dat "$geoip_tmp"
     geoip_sha=$actual_sha
+    task_progress downloading_geosite 45 "正在下载并校验 GeoSite"
     download_verified_file geosite.dat "$geosite_tmp"
     geosite_sha=$actual_sha
 
+    changed=true
+    was_running=false
+    if cmp -s "$geoip_tmp" "$GEOIP_FILE" && cmp -s "$geosite_tmp" "$GEOSITE_FILE"; then
+        changed=false
+        task_progress unchanged 95 "Geo 数据内容未改变，无需重载或重启"
+    else
+    task_progress validating 68 "正在校验新 Geo 数据与当前配置"
     geoip_backup="$VAR_DIR/GeoIP.dat.backup.$$"
     geosite_backup="$VAR_DIR/GeoSite.dat.backup.$$"
     geoip_had=false
@@ -168,8 +194,8 @@ do_update() {
         rm -f "$geoip_backup" "$geosite_backup"
         json_error "新 Geo 数据无法通过当前配置校验，已保留旧文件"
     fi
-    was_running=false
     control_status && was_running=true
+    task_progress activating 88 "刷新 Geo 缓存：当前内核需要重启以确保新数据生效"
     if [ "$was_running" = "true" ] && ! control_restart; then
         restore_file "$geoip_backup" "$GEOIP_FILE" "$geoip_had"
         restore_file "$geosite_backup" "$GEOSITE_FILE" "$geosite_had"
@@ -178,6 +204,7 @@ do_update() {
         json_error "Geo 数据更新后核心启动失败，已恢复旧文件"
     fi
     rm -f "$geoip_backup" "$geosite_backup"
+    fi
 
     updated_at=$(date '+%Y-%m-%d %H:%M:%S %z')
     meta_tmp="$VAR_DIR/geodata.meta.$$"
@@ -187,10 +214,13 @@ do_update() {
     mv -f "$meta_tmp" "$META_FILE"
     meta_tmp=""
     chmod 0600 "$META_FILE"
-    jq -n --arg updatedAt "$updated_at" '{ok:true,updated:true,updatedAt:$updatedAt,restarted:true}'
+    jq -n --arg updatedAt "$updated_at" --argjson restarted "$was_running" --argjson changed "$changed" \
+        '{ok:true,updated:true,updatedAt:$updatedAt,restarted:$restarted,unchanged:($changed|not)}'
 }
 
 do_apply_policy() {
+    operation_lock
+    task_progress generating 15 "正在生成规则策略配置"
     policy=${1:-}
     case "$policy" in
         cn_direct|lan_direct|direct) ;;
@@ -239,6 +269,7 @@ do_apply_policy() {
         }
     ' "$CONFIG_FILE" > "$config_tmp" || json_error "生成 Geo 规则配置失败"
     chmod 0600 "$config_tmp"
+    task_progress validating 45 "正在校验 Geo 策略，不停止当前内核"
     if ! "$BIN" -t -d "$ETC_DIR" -f "$config_tmp" > "$test_log" 2>&1; then
         json_error "Geo 规则无法通过 Mihomo 校验；请确认配置中存在 PROXY 策略组"
     fi
@@ -249,12 +280,11 @@ do_apply_policy() {
     mv -f "$config_tmp" "$CONFIG_FILE"
     config_tmp=""
     chmod 0600 "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak" "$before_file"
-    was_running=false
-    control_status && was_running=true
-    if [ "$was_running" = "true" ] && ! control_restart; then
+    if ! activation=$(hot_apply config); then
         cp "$ETC_DIR/config.yaml.bak" "$CONFIG_FILE"
-        control_restart || true
-        json_error "Geo 规则应用后核心启动失败，已恢复旧配置"
+        hot_apply config >/dev/null 2>&1 || true
+        hot_error=$(printf '%s' "$activation" | jq -r '.error // "内核接口不可用"')
+        json_error "Geo 策略热加载失败，已恢复旧配置：$hot_error"
     fi
 
     applied_at=$(date '+%Y-%m-%d %H:%M:%S %z')
@@ -265,7 +295,7 @@ do_apply_policy() {
     meta_tmp=""
     chmod 0600 "$POLICY_FILE"
     jq -n --arg policy "$policy" --arg appliedAt "$applied_at" \
-        '{ok:true,applied:true,policy:$policy,appliedAt:$appliedAt,restarted:true}'
+        '{ok:true,applied:true,policy:$policy,appliedAt:$appliedAt,restarted:false}'
 }
 
 case "${1:-status}" in

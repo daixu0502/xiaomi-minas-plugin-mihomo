@@ -134,7 +134,35 @@ if [ -z "$action" ] && [ "${REQUEST_METHOD:-GET}" = "GET" ]; then
     serve_frontend
 fi
 
+# Serialize other configuration/core mutations against detached update jobs too.
 case "$action" in
+    set_mode|select_proxy|manual_node_import|manual_node_delete|core_update_apply|network_access_set|start|stop|restart|config_save)
+        require_post
+        mkdir -p "$VAR_DIR"
+        exec 8>"$VAR_DIR/update-operation.lock"
+        flock -n 8 || json_error "已有更新或配置应用任务正在执行，请等待完成"
+        ;;
+esac
+
+case "$action" in
+    subscription_import|subscription_update|geodata_update|geodata_apply_policy|rule_provider_import|update_provider|update_rule_provider)
+        require_post
+        body=$(read_json_body) || json_error "请求内容无效或超过 64 KiB"
+        response=$(printf '%s' "$body" | PLUG_HOME_DIR="$PLUGIN_HOME" python3 -B "$SRC_DIR/files/update_tasks.py" start "$action" 2>/dev/null) || true
+        printf '%s' "$response" | jq -e 'type == "object"' >/dev/null 2>&1 || json_error "无法启动后台更新任务"
+        json_header
+        printf '%s\n' "$response"
+        ;;
+    update_task_status)
+        body='{}'
+        if [ "${REQUEST_METHOD:-GET}" = POST ]; then
+            body=$(read_json_body) || json_error "任务查询参数无效"
+        fi
+        response=$(printf '%s' "$body" | PLUG_HOME_DIR="$PLUGIN_HOME" python3 -B "$SRC_DIR/files/update_tasks.py" status 2>/dev/null) || true
+        printf '%s' "$response" | jq -e 'type == "object"' >/dev/null 2>&1 || json_error "无法读取后台任务状态"
+        json_header
+        printf '%s\n' "$response"
+        ;;
     status)
         running=false
         pid_value=""
@@ -193,61 +221,6 @@ case "$action" in
         json_header
         jq -n --arg group "$group" --arg node "$node" '{ok:true,group:$group,node:$node}'
         ;;
-    update_provider)
-        require_post
-        body=$(read_json_body) || json_error "请求内容无效或超过 64 KiB"
-        provider=$(printf '%s' "$body" | jq -r '.provider // empty' 2>/dev/null || true)
-        [ -n "$provider" ] || json_error "缺少代理提供者名称"
-        encoded_provider=$(jq -nr --arg value "$provider" '$value | @uri')
-        provider_state=$(api_call GET "/providers/proxies/$encoded_provider" 2>/dev/null) \
-            || json_error "无法读取代理提供者状态：$provider"
-        printf '%s' "$provider_state" | jq -e 'type == "object" and (.vehicleType | type == "string")' >/dev/null 2>&1 \
-            || json_error "代理提供者状态无效：$provider"
-        skip_message=""
-        if printf '%s' "$provider_state" | jq -e '.vehicleType == "Compatible"' >/dev/null 2>&1; then
-            skip_message="内置提供者，无需单独更新"
-        elif printf '%s' "$provider_state" | jq -e '.vehicleType == "File" and (.proxies | type == "array" and length == 0)' >/dev/null 2>&1; then
-            # Only skip known empty managed files. Empty HTTP/custom providers
-            # must still be retried, and missing/corrupt files must not be hidden.
-            managed_file=""
-            case "$provider" in
-                APP-MANUAL) managed_file="$ETC_DIR/providers/app-manual.yaml" ;;
-                APP-SUBSCRIPTION) managed_file="$ETC_DIR/providers/app-subscription.yaml" ;;
-            esac
-            if [ -n "$managed_file" ] && jq -e '.proxies | type == "array" and length == 0' "$managed_file" >/dev/null 2>&1; then
-                skip_message="尚无节点，请先在订阅页导入"
-            fi
-        fi
-        if [ -n "$skip_message" ]; then
-            json_header
-            jq -n --arg provider "$provider" --arg message "$skip_message" \
-                '{ok:true,provider:$provider,skipped:true,message:$message}'
-            exit 0
-        fi
-        api_call PUT "/providers/proxies/$encoded_provider" >/dev/null 2>&1 || json_error "代理提供者更新失败"
-        json_header
-        jq -n --arg provider "$provider" '{ok:true,provider:$provider}'
-        ;;
-    update_rule_provider)
-        require_post
-        body=$(read_json_body) || json_error "请求内容无效或超过 64 KiB"
-        provider=$(printf '%s' "$body" | jq -r '.provider // empty' 2>/dev/null || true)
-        [ -n "$provider" ] || json_error "缺少规则提供者名称"
-        encoded_provider=$(jq -nr --arg value "$provider" '$value | @uri')
-        api_call PUT "/providers/rules/$encoded_provider" >/dev/null 2>&1 || json_error "规则提供者更新失败"
-        json_header
-        jq -n --arg provider "$provider" '{ok:true,provider:$provider}'
-        ;;
-    rule_provider_import)
-        require_post
-        [ -x "$RULE_PROVIDER_MANAGER" ] || json_error "规则提供者导入组件尚未安装"
-        body=$(read_json_body) || json_error "请求内容无效或超过 64 KiB"
-        response=$(printf '%s' "$body" | "$RULE_PROVIDER_MANAGER" import 2>/dev/null) \
-            || json_error "规则提供者导入脚本执行失败"
-        printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "规则提供者导入返回异常"
-        json_header
-        printf '%s\n' "$response"
-        ;;
     subscription_status)
         response=$("$SUBSCRIPTION" status 2>/dev/null) || json_error "无法读取订阅状态"
         printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "订阅状态返回异常"
@@ -259,24 +232,6 @@ case "$action" in
             [ -n "$subscription_nodes" ] || subscription_nodes='[]'
         fi
         response=$(printf '%s' "$response" | jq --argjson nodes "$subscription_nodes" '. + {nodes:$nodes}')
-        json_header
-        printf '%s\n' "$response"
-        ;;
-    subscription_import)
-        require_post
-        body=$(read_json_body) || json_error "请求内容无效或超过 64 KiB"
-        subscription_url=$(printf '%s' "$body" | jq -r '.url // empty' 2>/dev/null || true)
-        [ -n "$subscription_url" ] || json_error "请输入订阅 URL"
-        response=$(printf '%s' "$subscription_url" | "$SUBSCRIPTION" import 2>/dev/null) \
-            || json_error "订阅导入脚本执行失败"
-        printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "订阅导入返回异常"
-        json_header
-        printf '%s\n' "$response"
-        ;;
-    subscription_update)
-        require_post
-        response=$("$SUBSCRIPTION" update 2>/dev/null) || json_error "订阅更新脚本执行失败"
-        printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "订阅更新返回异常"
         json_header
         printf '%s\n' "$response"
         ;;
@@ -310,7 +265,12 @@ case "$action" in
         ;;
     docker_proxy_status)
         [ -x "$DOCKER_PROXY_HELPER" ] || json_error "Docker 代理助手尚未安装"
-        response=$(sudo -n "$DOCKER_PROXY_HELPER" status "$MIXED_PORT" 2>/dev/null) \
+        force_check=''
+        if [ "${REQUEST_METHOD:-GET}" = POST ]; then
+            body=$(read_json_body) || json_error "请求格式无效"
+            if printf '%s' "$body" | jq -e '.force == true' >/dev/null 2>&1; then force_check=fresh; fi
+        fi
+        response=$(sudo -n "$DOCKER_PROXY_HELPER" status "$MIXED_PORT" "$force_check" 2>/dev/null) \
             || json_error "无法读取 Docker 代理状态"
         printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "Docker 代理状态返回异常"
         json_header
@@ -360,25 +320,6 @@ case "$action" in
         [ -x "$GEODATA_MANAGER" ] || json_error "Geo 数据组件尚未安装"
         response=$("$GEODATA_MANAGER" status 2>/dev/null) || json_error "无法读取 Geo 数据状态"
         printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "Geo 数据状态返回异常"
-        json_header
-        printf '%s\n' "$response"
-        ;;
-    geodata_update)
-        require_post
-        [ -x "$GEODATA_MANAGER" ] || json_error "Geo 数据组件尚未安装"
-        response=$("$GEODATA_MANAGER" update 2>/dev/null) || json_error "GeoIP / GeoSite 更新失败"
-        printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "Geo 数据更新返回异常"
-        json_header
-        printf '%s\n' "$response"
-        ;;
-    geodata_apply_policy)
-        require_post
-        [ -x "$GEODATA_MANAGER" ] || json_error "Geo 数据组件尚未安装"
-        body=$(read_json_body) || json_error "请求内容无效或超过 64 KiB"
-        policy=$(printf '%s' "$body" | jq -r '.policy // empty' 2>/dev/null || true)
-        case "$policy" in cn_direct|lan_direct|direct) ;; *) json_error "不支持的 Geo 规则策略" ;; esac
-        response=$("$GEODATA_MANAGER" apply "$policy" 2>/dev/null) || json_error "Geo 规则策略应用失败"
-        printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "Geo 规则策略返回异常"
         json_header
         printf '%s\n' "$response"
         ;;

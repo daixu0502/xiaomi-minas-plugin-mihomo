@@ -12,7 +12,6 @@ VAR_DIR="$PLUGIN_HOME/var"
 BIN="$SCRIPT_DIR/mihomo"
 # Runtime updates must never replace files covered by INFO.abstract.
 [ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
-CONTROL="$PLUGIN_HOME/scripts/control"
 EDITOR="$SCRIPT_DIR/rule_provider_editor.py"
 CONFIG_FILE="$ETC_DIR/config.yaml"
 
@@ -31,14 +30,11 @@ json_error() {
     exit 0
 }
 
-control_command() (
-    control_action=$1
-    [ ! -e "/proc/$$/fd/9" ] || exec 9>&-
-    PLUG_USER="$plugin_user" PLUG_NAME=mihomo PLUG_HOME_DIR="$PLUGIN_HOME" PLUG_SRC_DIR="$SRC_DIR" \
-        "$CONTROL" "$control_action"
-)
+. "$SCRIPT_DIR/update-common.sh"
 
 do_import() {
+    operation_lock
+    task_progress generating 15 "正在生成规则提供者配置"
     request_body=$(cat)
     printf '%s' "$request_body" | jq empty >/dev/null 2>&1 || json_error "规则提供者参数不是有效 JSON"
     provider_name=$(printf '%s' "$request_body" | jq -r '.name // empty')
@@ -73,6 +69,7 @@ do_import() {
         json_error "生成规则提供者配置失败"
     fi
     chmod 0600 "$config_tmp"
+    task_progress validating 45 "正在校验规则提供者配置"
     if ! "$BIN" -t -d "$ETC_DIR" -f "$config_tmp" > "$test_log" 2>&1; then
         json_error "规则提供者配置无法通过 Mihomo 校验；请确认 PROXY 策略组和 URL 可用"
     fi
@@ -81,16 +78,15 @@ do_import() {
     mv -f "$config_tmp" "$CONFIG_FILE"
     config_tmp=""
     chmod 0600 "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak"
-    was_running=false
-    control_command status >/dev/null 2>&1 && was_running=true
-    if [ "$was_running" = "true" ] && ! control_command restart >/dev/null 2>&1; then
+    if ! activation=$(hot_apply config); then
         cp "$ETC_DIR/config.yaml.bak" "$CONFIG_FILE"
-        control_command restart >/dev/null 2>&1 || true
-        json_error "规则提供者导入后 Mihomo 启动失败，已恢复原配置"
+        hot_apply config >/dev/null 2>&1 || true
+        hot_error=$(printf '%s' "$activation" | jq -r '.error // "内核接口不可用"')
+        json_error "规则提供者热加载失败，已恢复原配置：$hot_error"
     fi
     source_host=$(printf '%s' "$provider_url" | sed -n 's#^https://\([^/?#]*\).*#https://\1#p')
     jq -n --arg name "$provider_name" --arg source "$source_host" --arg target "$provider_action" \
-        '{ok:true,imported:true,name:$name,source:$source,target:$target}'
+        '{ok:true,imported:true,name:$name,source:$source,target:$target,restarted:false}'
 }
 
 case "${1:-}" in

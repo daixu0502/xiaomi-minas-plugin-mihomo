@@ -108,7 +108,7 @@ start_core() {
         -f "$CONFIG_FILE" \
         -ext-ctl "127.0.0.1:$CONTROLLER_PORT" \
         -secret "$secret" \
-        >> "$LOG_FILE" 2>&1 &
+        >> "$LOG_FILE" 2>&1 8>&- 9>&- &
     pid=$!
     printf '%s\n' "$pid" > "$PID_FILE"
     chmod 0600 "$PID_FILE"

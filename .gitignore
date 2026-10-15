@@ -5,3 +5,5 @@ __pycache__/
 *.tmp
 *.tgz
 payload/files/mihomo
+/dist/
+/offline/
