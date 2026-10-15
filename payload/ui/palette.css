@@ -113,3 +113,12 @@
 [data-minas-plugin="mihomo"].desktop-client .desktop-frame.desktop-compact>.shell{width:100%;height:0;padding:14px 14px 30px;}
 [data-minas-plugin="mihomo"].desktop-client .desktop-frame>:is(.modal,.sheet,.dialog,.detail-sheet,.mi-picker-sheet,.mi-confirm-dialog){max-width:calc(100% - 28px);max-height:calc(100% - 28px);}
 [data-minas-plugin="mihomo"].desktop-client.dialog-scroll-locked .desktop-frame>.shell{overflow-y:hidden;}
+
+/* Overlay sizes follow the plugin frame, never the desktop application's viewport. */
+[data-minas-plugin="mihomo"] :is(dialog,.modal,.dialog,.sheet,.detail-sheet,.mi-picker-sheet,.mi-confirm-dialog,.toast){min-width:0;overflow-wrap:anywhere;}
+[data-minas-plugin="mihomo"] .minas-plugin-body .toast{width:max-content;max-width:calc(100% - 32px);max-height:min(200px,calc(100dvh - 56px));overflow:auto;overscroll-behavior:contain;pointer-events:auto;}
+[data-minas-plugin="mihomo"].desktop-client .desktop-frame>:is(dialog,.modal,.dialog,.sheet,.detail-sheet,.mi-picker-sheet,.mi-confirm-dialog,.modal-backdrop,.backdrop,.busy,.mi-picker-backdrop,.mi-confirm-backdrop,.toast){position:absolute;}
+[data-minas-plugin="mihomo"].desktop-client .desktop-frame>.toast{max-height:min(200px,calc(100% - 56px));}
+[data-minas-plugin="mihomo"].desktop-client .desktop-frame>dialog{inset:0;width:min(560px,calc(100% - 28px));height:fit-content;max-width:calc(100% - 28px);max-height:calc(100% - 28px);margin:auto;transform:none;z-index:81;}
+[data-minas-plugin="mihomo"] .plugin-dialog-backdrop{position:absolute;inset:0;z-index:80;background:#17263c66;touch-action:none;}
+[data-minas-plugin="mihomo"] .busy{padding:20px;text-align:center;overflow:auto;overflow-wrap:anywhere;}

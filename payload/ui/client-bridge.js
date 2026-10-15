@@ -40,9 +40,11 @@
     parent.insertBefore(frame, shell);
     if (tabs) frame.appendChild(tabs);
     frame.appendChild(shell);
-    // Contain dialogs and their fixed backdrops within the same plugin window.
-    Array.prototype.slice.call(parent.children).forEach(function (child) {
-      if (child !== frame && child.matches('.modal-backdrop,.modal,.busy,.toast,.mi-picker-backdrop,.mi-picker-sheet,.mi-confirm-backdrop,.mi-confirm-dialog,.sheet,.dialog,.backdrop,.detail-sheet')) frame.appendChild(child);
+    // Hoist overlays out of scrolling content, including native dialogs and toasts.
+    var overlays = 'dialog,.modal-backdrop,.modal,.busy,.toast,.mi-picker-backdrop,.mi-picker-sheet,.mi-confirm-backdrop,.mi-confirm-dialog,.sheet,.dialog,.backdrop,.detail-sheet';
+    Array.prototype.slice.call(parent.querySelectorAll(overlays)).forEach(function (child) {
+      var owner = child.parentElement.closest(overlays);
+      if (!owner || !pluginRoot.contains(owner)) frame.appendChild(child);
     });
     if (parent === pluginBody) {
       parent.style.setProperty('min-height', '0', 'important');
@@ -82,6 +84,44 @@
     global.addEventListener('pagehide', dispose);
     updateSize();
     return frame;
+  }
+
+  // showModal() enters the browser top layer and ignores the micro-app boundary.
+  // Desktop uses a non-top-layer dialog, a local backdrop and local focus isolation.
+  function openDialog(dialog) {
+    var frame = pluginRoot.querySelector('.desktop-frame');
+    if (!frame) { dialog.showModal(); return; }
+    if (dialog.open) return;
+    var previous = nativeDocument.activeElement;
+    var backdrop = nativeDocument.createElement('div');
+    backdrop.className = 'plugin-dialog-backdrop';
+    backdrop.setAttribute('aria-hidden', 'true');
+    frame.appendChild(backdrop);
+    frame.appendChild(dialog);
+    var backgrounds = Array.prototype.slice.call(frame.children).filter(function (el) { return el.matches('.shell,.tabs'); });
+    var inertBefore = backgrounds.map(function (el) { return el.inert; });
+    backgrounds.forEach(function (el) { el.inert = true; });
+    function keys(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault(); event.stopPropagation(); dialog.close('cancel');
+      } else if (event.key === 'Tab') {
+        var controls = Array.prototype.slice.call(dialog.querySelectorAll('button,input,select,textarea,a[href],[tabindex]')).filter(function (el) {
+          return !el.disabled && el.tabIndex >= 0 && el.getClientRects().length;
+        });
+        var first = controls[0], last = controls[controls.length - 1];
+        if (!first) { event.preventDefault(); dialog.focus(); }
+        else if (event.shiftKey && nativeDocument.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && nativeDocument.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    }
+    function cleanup() {
+      backdrop.remove(); dialog.removeEventListener('keydown', keys);
+      backgrounds.forEach(function (el, i) { el.inert = inertBefore[i]; });
+      if (previous && previous.isConnected && pluginRoot.contains(previous)) previous.focus({ preventScroll: true });
+    }
+    dialog.addEventListener('keydown', keys);
+    dialog.addEventListener('close', cleanup, { once: true });
+    try { dialog.show(); } catch (error) { dialog.removeEventListener('close', cleanup); cleanup(); throw error; }
   }
 
   function installDesktopWheelSupport() {
@@ -219,5 +259,5 @@
     });
   }
 
-  global.XiaomiPluginClient = { request: request, document: document };
+  global.XiaomiPluginClient = { request: request, document: document, openDialog: openDialog };
 })(window);
