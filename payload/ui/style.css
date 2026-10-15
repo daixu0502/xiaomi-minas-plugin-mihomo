@@ -42,6 +42,8 @@
 [data-minas-plugin="mihomo"] .button.secondary{color: var(--teal-dark); background: var(--teal-soft);}
 [data-minas-plugin="mihomo"] .button.danger{color: var(--red); background: color-mix(in srgb, var(--red) 13%, transparent);}
 [data-minas-plugin="mihomo"] .button.compact{padding: 8px 11px; font-size: 12px; white-space: nowrap;}
+[data-minas-plugin="mihomo"] .provider-update{flex:0 0 auto;min-width:96px;min-height:40px;padding:9px 14px;font-size:14px;line-height:1.45;white-space:nowrap;border:1px solid var(--line);color:var(--accent);background:var(--soft);}
+@media(max-width:560px){[data-minas-plugin="mihomo"] .card-heading.provider-heading{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;align-items:start;}[data-minas-plugin="mihomo"] .provider-heading .provider-update{justify-self:end;max-width:100%;}}
 [data-minas-plugin="mihomo"] .icon-button{width: 38px; height: 38px; flex: 0 0 38px; border: 1px solid var(--line); border-radius: 12px; color: var(--teal-dark); background: var(--surface-solid); font-size: 20px; cursor: pointer;}
 [data-minas-plugin="mihomo"] .stack{display: grid; min-width: 0px; max-width: 100%; gap: 9px;}
 [data-minas-plugin="mihomo"] .empty-state{padding: 18px 4px; color: var(--muted); font-size: 13px; text-align: center;}

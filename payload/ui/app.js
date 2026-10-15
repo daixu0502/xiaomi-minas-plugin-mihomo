@@ -18,6 +18,8 @@ var document = window.XiaomiPluginClient.document;
     currentAccess: 'local',
     mixedPort: 7890
   };
+  var providerBusy = {proxy:false,rule:false};
+  function syncProviderUpdate(kind){var button=byId(kind==='proxy'?'updateAllProviders':'updateAllRuleProviders');var names=kind==='proxy'?state.proxyProviderNames:state.ruleProviderNames;button.disabled=providerBusy[kind]||!names.length;button.setAttribute('aria-busy',String(providerBusy[kind]));}
   var toastTimer;
 
   function byId(id) { return document.getElementById(id); }
@@ -532,6 +534,7 @@ var document = window.XiaomiPluginClient.document;
       state.proxyProviderSkippedCount = names.length - state.proxyProviderNames.length;
     }
     else state.ruleProviderNames = names;
+    syncProviderUpdate(kind);
     container.textContent = '';
     container.className = 'stack';
     if (!names.length) {
@@ -589,6 +592,7 @@ var document = window.XiaomiPluginClient.document;
     }).catch(function (error) {
       state.proxyProviderNames = [];
       state.proxyProviderSkippedCount = 0;
+      syncProviderUpdate('proxy');
       container.className = 'stack empty-state';
       container.textContent = error.message;
     });
@@ -602,6 +606,7 @@ var document = window.XiaomiPluginClient.document;
       renderProviders(container, data.providers || {}, 'rule');
     }).catch(function (error) {
       state.ruleProviderNames = [];
+      syncProviderUpdate('rule');
       container.className = 'stack empty-state';
       container.textContent = error.message;
     });
@@ -659,6 +664,7 @@ var document = window.XiaomiPluginClient.document;
     }
     button.disabled = true;
     var action = kind === 'proxy' ? 'update_provider' : 'update_rule_provider';
+    providerBusy[kind]=true;syncProviderUpdate(kind);
     var updated = 0;
     var skipped = kind === 'proxy' ? state.proxyProviderSkippedCount : 0;
     var failures = [];
@@ -681,7 +687,7 @@ var document = window.XiaomiPluginClient.document;
       return kind === 'proxy' ? Promise.all([loadProviders(), loadProxies()]) : loadRuleProviders();
     }).catch(function (error) {
       toast(error.message, true);
-    }).finally(function () { button.disabled = false; });
+    }).finally(function () { providerBusy[kind]=false;syncProviderUpdate(kind); });
   }
 
   function loadSubscription() {

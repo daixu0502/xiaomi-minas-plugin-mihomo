@@ -87,14 +87,22 @@ const profiles = [
       await root.locator('#updateAllRuleProviders').click();
       await page.waitForFunction(() => !document.querySelector('#updateAllRuleProviders').disabled);
       assert(calls.some(q=>q.action==='update_rule_provider'));
+      if(options.isMobile){
+        for(const id of ['updateAllRuleProviders','updateAllProviders']){
+          if(id==='updateAllProviders')await root.locator('.tab[data-page="proxies"]').click();
+          const geometry=await root.locator('#'+id).evaluate(button=>{const header=button.parentElement,copy=header.querySelector('div');return {button:button.getBoundingClientRect().toJSON(),header:header.getBoundingClientRect().toJSON(),copy:copy.getBoundingClientRect().toJSON()};});
+          assert(geometry.button.top>=geometry.copy.bottom-1);
+          assert(geometry.button.right<=geometry.header.right+1);
+          assert(geometry.button.width>=90&&geometry.button.height>=40);
+        }
+      }
       providers = {'APP-MANUAL':{vehicleType:'File',proxies:[]}};
       await root.locator('.tab[data-page="proxies"]').click();
       await root.locator('#reloadProxies').click();
       await page.waitForFunction(() => document.querySelectorAll('#providers .provider-row').length === 1);
       start = calls.length;
-      await root.locator('#updateAllProviders').click();
+      assert(await root.locator('#updateAllProviders').isDisabled());
       assert(!calls.slice(start).some(q=>q.action==='update_provider'));
-      assert.match(await root.locator('#toast').innerText(), /没有需要更新/);
       assert.deepEqual(errors, []);
       console.log(name + ': passed');
       await context.close();

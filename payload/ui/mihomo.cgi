@@ -1,13 +1,12 @@
 #!/bin/sh
 set -u
 
-# The Xiaomi plugin gateway executes this CGI through /data/plugin/www, which
-# is a symlink to the installed UI directory. Resolve the physical path so
-# sibling files (for example files/subscription.sh) are found reliably.
-SCRIPT_DIR=$(CDPATH= cd -P "$(dirname "$0")" && pwd -P)
+# Resolve both UI symlinks and the /dev/fd/N execution used by newer firmware.
+SCRIPT_FILE=$(readlink -f "$0") || exit 1
+SCRIPT_DIR=$(CDPATH= cd -P "$(dirname "$SCRIPT_FILE")" && pwd -P)
 plugin_user=$(printf '%s\n' "$SCRIPT_DIR" | sed -n 's#^/nas/pool[^/]*/\(u[0-9][0-9]*\)/plugin/pluginsrc/mihomo/ui$#\1#p')
 if [ -z "$plugin_user" ]; then
-    plugin_user=$(stat -c '%U' "$0" 2>/dev/null || true)
+    plugin_user=$(stat -c '%U' "$SCRIPT_FILE" 2>/dev/null || true)
 fi
 case "$plugin_user" in u[0-9]*) ;; *) plugin_user=$(id -un) ;; esac
 
