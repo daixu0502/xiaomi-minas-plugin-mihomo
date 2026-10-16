@@ -270,7 +270,10 @@ case "$action" in
             body=$(read_json_body) || json_error "请求格式无效"
             if printf '%s' "$body" | jq -e '.force == true' >/dev/null 2>&1; then force_check=fresh; fi
         fi
-        response=$(sudo -n "$DOCKER_PROXY_HELPER" status "$MIXED_PORT" "$force_check" 2>/dev/null) \
+        # sudoers matches arguments exactly: never append an empty argument.
+        set -- status "$MIXED_PORT"
+        [ -z "$force_check" ] || set -- "$@" "$force_check"
+        response=$(sudo -n "$DOCKER_PROXY_HELPER" "$@" 2>/dev/null) \
             || json_error "无法读取 Docker 代理状态"
         printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "Docker 代理状态返回异常"
         json_header

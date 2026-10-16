@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_NAME='mihomo'
 PLUGIN_LABEL='Mihomo'
-PLUGIN_VERSION='1.7.28'
+PLUGIN_VERSION='1.7.29'
 UNINSTALL_NOTE='卸载会停止该用户的代理；若 Docker 正使用此代理，会撤销它并重启 Docker。其他用户插件和普通文件保留。'
 
 # Shared frontend; keep this section consistent across the four manage.sh files.
@@ -809,8 +809,8 @@ chmod 0644 "$docker_status_tmp"
 mv -f "$docker_status_tmp" /data/plugin/.mihomo-system/docker_proxy_status.py
 chown root:root "$docker_helper_tmp"
 chmod 0755 "$docker_helper_tmp"
-printf '%s ALL=(root) NOPASSWD: %s status %s, %s enable %s, %s disable %s\n' \
-    "$PLUGIN_USER" "$DOCKER_HELPER" "$MIXED_PORT" "$DOCKER_HELPER" "$MIXED_PORT" "$DOCKER_HELPER" "$MIXED_PORT" > "$docker_sudoers_tmp"
+printf '%s ALL=(root) NOPASSWD: %s status %s, %s status %s fresh, %s enable %s, %s disable %s\n' \
+    "$PLUGIN_USER" "$DOCKER_HELPER" "$MIXED_PORT" "$DOCKER_HELPER" "$MIXED_PORT" "$DOCKER_HELPER" "$MIXED_PORT" "$DOCKER_HELPER" "$MIXED_PORT" > "$docker_sudoers_tmp"
 chown root:root "$docker_sudoers_tmp"
 chmod 0440 "$docker_sudoers_tmp"
 visudo -cf "$docker_sudoers_tmp" >/dev/null 2>&1 || fail "Docker 代理 sudoers 规则校验失败"
