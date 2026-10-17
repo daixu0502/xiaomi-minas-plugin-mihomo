@@ -389,7 +389,7 @@ var document = window.XiaomiPluginClient.document;
       byId('modeMetric').textContent = mode ? ({ rule: '规则', global: '全局', direct: '直连' }[mode] || mode) : '—';
       byId('portMetric').textContent = configs['mixed-port'] || '—';
       byId('lanMetric').textContent = configs['allow-lan'] === true ? '已开放' : '仅本机';
-      if (data.pluginVersion) byId('pluginVersion').textContent = '插件版本 ' + data.pluginVersion;
+      if (data.pluginVersion) byId('pluginVersion').textContent = '插件版本 ' + data.pluginVersion + ' · 公共权限组件 ' + (data.helperVersion || '不可用');
       updateModeButtons(mode);
       if (showMessage) toast('状态已刷新');
       return data;

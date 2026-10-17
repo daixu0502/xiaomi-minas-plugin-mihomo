@@ -214,6 +214,75 @@ def install_code(relative, value):
     atomic(target, value, 0o755 if executable else 0o644)
 
 
+def ssh_state():
+    current, legacy = BASE/'modules/sshrecovery/var', BASE/'sshrecovery'
+    if current.exists() and legacy.exists():
+        raise ValueError('新旧 SSH 恢复数据同时存在，请先核对，拒绝自动合并密钥')
+    return legacy if legacy.exists() else current
+
+
+@contextlib.contextmanager
+def ssh_state_lock(plugin):
+    if plugin != 'sshrecovery':
+        yield
+        return
+    directory = ssh_state()
+    if not directory.exists():
+        yield
+        return
+    runtime.secure_directory(directory)
+    fd = os.open(str(directory/'operations.lock'), os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW, 0o600)
+    try:
+        metadata = os.fstat(fd)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o077:
+            raise ValueError('SSH 恢复操作锁权限异常')
+        fcntl.flock(fd, fcntl.LOCK_EX|fcntl.LOCK_NB)
+        yield
+    finally:
+        os.close(fd)
+
+
+def migrate_ssh_state():
+    legacy, target = BASE/'sshrecovery', BASE/'modules/sshrecovery/var'
+    # Standalone tools do not use the shared API lock. Refuse migration if one
+    # was already running before its on-disk entry point was updated.
+    if legacy.exists():
+        for process in Path('/proc').glob('[0-9]*/cmdline'):
+            try: arguments = process.read_bytes().split(b'\0')
+            except (OSError, ProcessLookupError): continue
+            if b'/data/ssh-autostart-fix/recover-ssh.py' in arguments:
+                raise ValueError('独立 SSH 恢复工具正在运行，请结束后再更新')
+        if target.exists():
+            raise ValueError('新旧 SSH 恢复数据同时存在，拒绝覆盖')
+        validate_tree(legacy)
+        runtime.secure_directory(target.parent,create=True)
+        os.rename(legacy,target)  # Preserve key permissions and lock inode.
+    for path in (target,target/'keys',target/'host',target/'tmp'):
+        runtime.secure_directory(path,create=True,mode=0o700)
+
+
+def restore_tree(current, saved):
+    """Restore a root-owned snapshot in place, never unlinking live locks."""
+    if current.exists():
+        validate_tree(current)
+        for path in sorted(current.rglob('*'),key=lambda p:len(p.parts),reverse=True):
+            previous=saved/path.relative_to(current)
+            if path.is_file() and not previous.exists() and not path.name.endswith('.lock') and path.name!='lock':
+                path.unlink()
+            elif path.is_dir() and not previous.exists():
+                try:path.rmdir()
+                except OSError:pass
+    if saved.exists():
+        for path in [saved]+sorted(saved.rglob('*'),key=lambda p:len(p.parts)):
+            target=current/path.relative_to(saved)
+            if path.is_dir():
+                target.mkdir(parents=True,exist_ok=True);target.chmod(stat.S_IMODE(path.stat().st_mode))
+            elif path.is_file():atomic(target,path.read_bytes(),stat.S_IMODE(path.stat().st_mode))
+    elif current.exists():
+        try:current.rmdir()
+        except OSError:pass
+
+
 def retire_legacy(plugin, user):
     # A module update owns only its own former flat files.
     for name in FLAT_FILES.get(plugin, ()):
@@ -253,6 +322,8 @@ def install(payload, plugin, user, plugin_version, backup):
     if version(old.get('modules',{}).get(plugin,'0.0.0')) > version(plugin_version):
         raise ValueError('已安装更新的插件权限模块，拒绝降级')
     data = json.loads(json.dumps(old))
+    for retired in ('quickshare','downloadcenter'):
+        data.get('packages',{}).pop(retired,None)
     if version(old['version']) < version(runtime.VERSION):
         for name in CORE_FILES: install_code(name, values[name])
         data.update(version=runtime.VERSION, layoutVersion=runtime.LAYOUT_VERSION)
@@ -281,8 +352,6 @@ def install(payload, plugin, user, plugin_version, backup):
         if not match or not 1024 <= int(match[1]) <= 65535: raise ValueError('Mihomo 端口未配置')
         data.setdefault('settings',{}).setdefault(user,{})['mihomo'] = {'proxyPort':int(match[1])}
     if plugin == 'sshrecovery':
-        for name in ('sshrecovery','sshrecovery/keys','sshrecovery/host','sshrecovery/tmp'):
-            runtime.secure_directory(BASE/name, create=True, mode=0o700)
         worker = Path('/data/ssh-autostart-fix/recover-ssh.py')
         old_helper = BASE/'ssh-recovery-helper'
         if worker.is_file():
@@ -290,10 +359,12 @@ def install(payload, plugin, user, plugin_version, backup):
             previous = worker.read_bytes()
             # Change only the retired asset lookup, preserving standalone fixes.
             updated = previous.replace(b"BASE/'ssh-recovery-boot.sh'", b"Path('/data/ssh-autostart-fix/restore-ssh.sh')")
+            updated = updated.replace(b"STATE = BASE/'sshrecovery'", b"STATE = BASE/'modules/sshrecovery/var'")
             if updated != previous:
                 compile(updated, str(worker), 'exec')
                 atomic(backup/'standalone-ssh-worker', previous, 0o600)
                 atomic(worker, updated, worker.stat().st_mode & 0o777)
+        migrate_ssh_state()
     atomic(BASE/'registry.json', data)
     with migration(user, backup) if plugin == 'taskcenter' else contextlib.nullcontext():
         if plugin == 'taskcenter':
@@ -316,7 +387,7 @@ def install(payload, plugin, user, plugin_version, backup):
 def remove(plugin, user, backup):
     data = runtime.registry()
     if plugin == 'sshrecovery':
-        key = BASE / 'sshrecovery/keys' / (user + '.pub')
+        key = ssh_state() / 'keys' / (user + '.pub')
         if key.exists(): key.unlink()
     grants = data['users'].get(user, [])
     if plugin == 'taskcenter':
@@ -329,7 +400,7 @@ def remove(plugin, user, backup):
     if plugin in grants: grants.remove(plugin)
     if not grants: data['users'].pop(user, None)
     if plugin == 'sshrecovery' and not any('sshrecovery' in g for g in data['users'].values()):
-        state = BASE / 'sshrecovery'
+        state = ssh_state()
         if state.exists():
             validate_tree(state)
             shutil.rmtree(str(state))
@@ -361,7 +432,7 @@ def main():
     runtime.account(args.user)
     runtime.secure_directory(BASE, create=True)
 
-    with runtime.lock('component.lock', exclusive=True, wait=15):
+    with runtime.lock('component.lock', exclusive=True, wait=15), ssh_state_lock(args.plugin):
         check_idle()
         if args.action == 'remove':
             runtime.secure_directory(BACKUPS,create=True,mode=0o700)
@@ -383,11 +454,11 @@ def main():
             data = install(args.payload, args.plugin, args.user, args.plugin_version, backup) if args.action == 'install' else remove(args.plugin, args.user, backup)
         except BaseException:
             # Restore grouped code and protected state, preserving live lock inodes.
+            migrated=BASE/'modules/sshrecovery/var'
+            if (saved/'sshrecovery').exists() and not (BASE/'sshrecovery').exists() and migrated.exists():
+                os.rename(migrated,BASE/'sshrecovery')
             for name in ('common','modules','users','sshrecovery'):
-                current=BASE/name; previous=saved/name
-                if current.exists():
-                    validate_tree(current);shutil.rmtree(current)
-                if previous.exists():shutil.copytree(previous,current)
+                restore_tree(BASE/name,saved/name)
             for file in BASE.iterdir():
                 if file.is_file() and file.name not in {'component.lock','docker.lock'} and not (saved/file.name).exists(): file.unlink()
             for file in saved.iterdir():

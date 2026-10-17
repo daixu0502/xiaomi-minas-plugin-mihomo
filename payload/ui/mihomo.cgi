@@ -181,6 +181,7 @@ case "$action" in
         printf '%s' "$version" | jq empty >/dev/null 2>&1 || version=null
         printf '%s' "$configs" | jq empty >/dev/null 2>&1 || configs=null
         plugin_version=$(jq -r '.version // ""' "$INFO_FILE" 2>/dev/null || true)
+        helper_version=$(jq -n --arg pluginUser "$plugin_user" '{action:"capabilities",pluginUser:$pluginUser}' | sudo -n "$DOCKER_PROXY_HELPER" mihomo 2>/dev/null | jq -r 'select(.ok == true) | .helperVersion // empty' 2>/dev/null || true)
         json_header
         jq -n \
             --argjson running "$running" \
@@ -188,7 +189,8 @@ case "$action" in
             --argjson version "$version" \
             --argjson configs "$configs" \
             --arg pluginVersion "$plugin_version" \
-            '{ok:true,running:$running,pid:$pid,version:$version,configs:$configs,pluginVersion:$pluginVersion}'
+            --arg helperVersion "$helper_version" \
+            '{ok:true,running:$running,pid:$pid,version:$version,configs:$configs,pluginVersion:$pluginVersion,helperVersion:($helperVersion|if length>0 then . else null end)}'
         ;;
     proxies)
         response=$(api_call GET /proxies 2>/dev/null) || json_error "无法连接 Mihomo 控制端"
