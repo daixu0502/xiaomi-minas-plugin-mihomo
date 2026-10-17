@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_NAME='mihomo'
 PLUGIN_LABEL='Mihomo'
-PLUGIN_VERSION='1.7.29'
+PLUGIN_VERSION='1.7.30'
 UNINSTALL_NOTE='卸载会停止该用户的代理；若 Docker 正使用此代理，会撤销它并重启 Docker。其他用户插件和普通文件保留。'
 
 # Shared frontend; keep this section consistent across the four manage.sh files.
@@ -423,9 +423,9 @@ nas_uninstall() {
     case "$NAS_PLUGIN" in
         mihomo)
             nas_port=$(sed -n 's/^MIXED_PORT=\([0-9][0-9]*\)$/\1/p' "$NAS_HOME/etc/ports.env" 2>/dev/null | head -n 1)
-            nas_helper=/data/plugin/.mihomo-system/mihomo-docker-proxy
+            nas_helper=/data/.minas-privileged/minas-helper
             if [ -x "$nas_helper" ] && [ -n "$nas_port" ]; then
-                "$nas_helper" disable "$nas_port" >/dev/null || nas_fail "无法撤销该用户的 Docker 代理。"
+                jq -n --arg pluginUser "$NAS_USER" '{action:"docker_proxy_disable",pluginUser:$pluginUser}' | "$nas_helper" mihomo >/dev/null || nas_fail "无法撤销该用户的 Docker 代理。"
             fi
             rm -f "/etc/sudoers.d/mihomo-docker-proxy-$NAS_USER" "/etc/cron.d/mihomo-plugin-$NAS_USER"
             if [ -f /etc/sudoers.d/mihomo-docker-proxy ] && grep -q "^$NAS_USER[[:space:]]" /etc/sudoers.d/mihomo-docker-proxy; then rm -f /etc/sudoers.d/mihomo-docker-proxy; fi
@@ -439,6 +439,9 @@ nas_uninstall() {
         nascenter)
             rm -f "/etc/sudoers.d/nascenter-$NAS_USER";;
     esac
+    if [ -f /data/.minas-privileged/component_admin.py ]; then
+        python3 /data/.minas-privileged/component_admin.py remove --plugin "$NAS_PLUGIN" --user "$NAS_USER" || nas_fail "公共权限模块卸载失败"
+    fi
     rm -f "$NAS_WEB_ROOT/$NAS_USER/$NAS_PLUGIN"
     # Paths were checked in full by nas_check_user; repeat immediately before removal.
     nas_pool_path "$NAS_SRC" pluginsrc; nas_pool_path "$NAS_TMP" plugintmp
@@ -796,26 +799,7 @@ chown -h "$PLUGIN_USER:$PLUGIN_USER" "$PLUGIN_HOME/src" "$PLUGIN_HOME/tmp" "$WEB
 chmod 0700 "$PLUGIN_HOME" "$SRC_DIR" "$TMP_DIR"
 chmod 0755 "$SRC_DIR/ui"
 
-mkdir -p /data/plugin/.mihomo-system /etc/sudoers.d
-chown root:root /data/plugin/.mihomo-system
-chmod 0755 /data/plugin/.mihomo-system
-docker_helper_tmp="$DOCKER_HELPER.new.$$"
-docker_sudoers_tmp="$DOCKER_SUDOERS.new.$$"
-cp "$PAYLOAD_DIR/system/mihomo-docker-proxy" "$docker_helper_tmp"
-docker_status_tmp=/data/plugin/.mihomo-system/docker_proxy_status.py.new.$$
-cp "$PAYLOAD_DIR/system/docker_proxy_status.py" "$docker_status_tmp"
-chown root:root "$docker_status_tmp"
-chmod 0644 "$docker_status_tmp"
-mv -f "$docker_status_tmp" /data/plugin/.mihomo-system/docker_proxy_status.py
-chown root:root "$docker_helper_tmp"
-chmod 0755 "$docker_helper_tmp"
-printf '%s ALL=(root) NOPASSWD: %s status %s, %s status %s fresh, %s enable %s, %s disable %s\n' \
-    "$PLUGIN_USER" "$DOCKER_HELPER" "$MIXED_PORT" "$DOCKER_HELPER" "$MIXED_PORT" "$DOCKER_HELPER" "$MIXED_PORT" "$DOCKER_HELPER" "$MIXED_PORT" > "$docker_sudoers_tmp"
-chown root:root "$docker_sudoers_tmp"
-chmod 0440 "$docker_sudoers_tmp"
-visudo -cf "$docker_sudoers_tmp" >/dev/null 2>&1 || fail "Docker 代理 sudoers 规则校验失败"
-mv -f "$docker_helper_tmp" "$DOCKER_HELPER"
-mv -f "$docker_sudoers_tmp" "$DOCKER_SUDOERS"
+python3 "$PAYLOAD_DIR/common/component_admin.py" install --plugin "$PLUGIN_NAME" --user "$PLUGIN_USER" --payload "$PAYLOAD_DIR" --plugin-version "$PLUGIN_VERSION" || fail "公共权限组件安装失败"
 if [ -f "$DOCKER_SUDOERS_LEGACY" ] && grep -q "^$PLUGIN_USER[[:space:]]" "$DOCKER_SUDOERS_LEGACY"; then
     rm -f "$DOCKER_SUDOERS_LEGACY"
 fi

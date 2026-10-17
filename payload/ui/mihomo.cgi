@@ -20,7 +20,7 @@ CORE_UPDATER="$SRC_DIR/files/core-update.sh"
 GEODATA_MANAGER="$SRC_DIR/files/geodata.sh"
 NETWORK_ACCESS="$SRC_DIR/files/network-access.sh"
 RULE_PROVIDER_MANAGER="$SRC_DIR/files/rule-provider.sh"
-DOCKER_PROXY_HELPER="/data/plugin/.mihomo-system/mihomo-docker-proxy"
+DOCKER_PROXY_HELPER="/data/.minas-privileged/minas-helper"
 ETC_DIR="$PLUGIN_HOME/etc"
 VAR_DIR="$PLUGIN_HOME/var"
 [ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
@@ -79,6 +79,12 @@ json_error() {
     json_header
     jq -n --arg message "$message" '{ok:false,error:$message}'
     exit 0
+}
+
+docker_proxy_call() {
+    proxy_action=$1
+    proxy_force=${2:-false}
+    jq -n --arg action "$proxy_action" --arg pluginUser "$plugin_user" --argjson force "$proxy_force" '{action:$action,pluginUser:$pluginUser,force:$force}' | sudo -n "$DOCKER_PROXY_HELPER" mihomo
 }
 
 get_action() {
@@ -273,7 +279,7 @@ case "$action" in
         # sudoers matches arguments exactly: never append an empty argument.
         set -- status "$MIXED_PORT"
         [ -z "$force_check" ] || set -- "$@" "$force_check"
-        response=$(sudo -n "$DOCKER_PROXY_HELPER" "$@" 2>/dev/null) \
+        response=$(docker_proxy_call docker_proxy_status "$([ -n "$force_check" ] && printf true || printf false)" 2>/dev/null) \
             || json_error "无法读取 Docker 代理状态"
         printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "Docker 代理状态返回异常"
         json_header
@@ -282,7 +288,7 @@ case "$action" in
     docker_proxy_enable)
         require_post
         [ -x "$DOCKER_PROXY_HELPER" ] || json_error "Docker 代理助手尚未安装"
-        response=$(sudo -n "$DOCKER_PROXY_HELPER" enable "$MIXED_PORT" 2>/dev/null) \
+        response=$(docker_proxy_call docker_proxy_enable 2>/dev/null) \
             || json_error "启用 Docker 代理失败"
         printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "Docker 代理操作返回异常"
         json_header
@@ -291,7 +297,7 @@ case "$action" in
     docker_proxy_disable)
         require_post
         [ -x "$DOCKER_PROXY_HELPER" ] || json_error "Docker 代理助手尚未安装"
-        response=$(sudo -n "$DOCKER_PROXY_HELPER" disable "$MIXED_PORT" 2>/dev/null) \
+        response=$(docker_proxy_call docker_proxy_disable 2>/dev/null) \
             || json_error "关闭 Docker 代理失败"
         printf '%s' "$response" | jq empty >/dev/null 2>&1 || json_error "Docker 代理操作返回异常"
         json_header

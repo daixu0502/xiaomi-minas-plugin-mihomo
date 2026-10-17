@@ -37,7 +37,7 @@ mihomo_listening() {
 }
 
 show_status() {
-    /usr/bin/python3 -B /data/plugin/.mihomo-system/docker_proxy_status.py "$PROXY_PORT" "$FORCE_CHECK"
+    /usr/bin/python3 -B "$(dirname "$(readlink -f "$0")")/docker_proxy_status.py" "$PROXY_PORT" "$FORCE_CHECK"
 }
 
 restart_docker() {

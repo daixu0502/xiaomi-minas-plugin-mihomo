@@ -1,0 +1,112 @@
+#!/usr/bin/python3
+"""Stable sudo entry point; feature code lives under modules/ (API v1)."""
+import importlib.machinery
+import importlib.util
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'common'))
+import privileged_runtime as runtime
+
+
+def load(name, filename):
+    paths = {'docker-manager-helper':'modules/dockermanager/docker-manager-helper', 'task-center-helper':'modules/taskcenter/task-center-helper', 'ssh-recovery-helper':'modules/sshrecovery/ssh-recovery-helper', 'mihomo-api.py':'modules/mihomo/api.py', 'nascenter-api.py':'modules/nascenter/api.py'}
+    file = runtime.BASE / paths[filename]
+    if not file.exists() and filename in ('docker-manager-helper','task-center-helper','ssh-recovery-helper'):
+        file = runtime.BASE / filename # API-v1 module not yet migrated by its own package.
+    runtime.secure_directory(file.parent)
+    metadata = file.lstat()
+    if not __import__('stat').S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o022:
+        raise ValueError('权限模块文件不安全')
+    sys.path.insert(0, str(file.parent))
+    loader = importlib.machinery.SourceFileLoader(name, str(file))
+    spec = importlib.util.spec_from_loader(name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+def dispatch(plugin, request, caller):
+    if plugin not in runtime.MODULES:
+        raise ValueError('未知权限模块')
+    user = caller if caller and caller != 'root' else request.get('pluginUser')
+    if caller and caller != 'root':
+        runtime.authorize(user, plugin)
+    elif user:
+        runtime.authorize(user, plugin)
+    if 'pluginUser' in request and request['pluginUser'] != user:
+        raise ValueError('不能访问其他用户的权限模块')
+    if request.get('action') == 'capabilities':
+        return {'apiVersion': runtime.API_VERSION, 'helperVersion': runtime.VERSION, 'module': plugin,
+                'sharedDockerLock': True, 'registeredUsers': None}
+    if plugin == 'dockermanager':
+        return load('minas_docker', 'docker-manager-helper').dispatch(request)
+    user = runtime.authorize(user, plugin)
+    if request.get('pluginUser') != user:
+        raise ValueError('不能访问其他用户的任务')
+    if plugin == 'sshrecovery':
+        return load('minas_ssh', 'ssh-recovery-helper').api(user, request)
+    if plugin in ('mihomo', 'nascenter'):
+        return load('minas_' + plugin, plugin + '-api.py').api(user, request)
+    return load('minas_tasks', 'task-center-helper').api(user, request)
+
+
+def main():
+    if os.geteuid() != 0:
+        raise ValueError('必须通过授权 sudo 入口调用权限组件')
+    if len(sys.argv) < 2:
+        raise ValueError('缺少权限模块')
+    caller = os.environ.get('SUDO_USER')
+    mode = sys.argv[1]
+    # Acquire before importing feature modules so code updates are atomic to callers.
+    with runtime.component_use():
+        if mode == 'boot' and len(sys.argv) == 2:
+            if caller not in (None, 'root'):
+                raise ValueError('禁止调用内部启动模式')
+            time.sleep(60)
+            for user, plugins in runtime.registry().get('users', {}).items():
+                runtime.account(user)
+                if 'dockermanager' in plugins:
+                    # User-owned registration scripts must never execute as root.
+                    account = __import__('pwd').getpwnam(user)
+                    def demote():
+                        os.initgroups(user, account.pw_gid); os.setgid(account.pw_gid); os.setuid(account.pw_uid)
+                    subprocess.run(['/bin/sh', '/home/%s/plugin/dockermanager/src/files/boot.sh' % user, user],
+                                   preexec_fn=demote, timeout=45, check=False)
+            return
+        if len(sys.argv) > 2:
+            if mode == 'sshrecovery' and sys.argv[2:] == ['prune'] and caller in (None, 'root'):
+                load('minas_ssh_prune', 'ssh-recovery-helper').prune()
+                return
+            if caller not in (None, 'root') or mode != 'taskcenter':
+                raise ValueError('禁止调用内部调度模式')
+            if sys.argv[2] in ('init', 'worker') and len(sys.argv) >= 4:
+                runtime.authorize(sys.argv[3], 'taskcenter')
+            module = load('minas_tasks', 'task-center-helper')
+            sys.argv = [str(runtime.BASE / 'modules/taskcenter/task-center-helper')] + sys.argv[2:]
+            module.main()
+            return
+        raw = sys.stdin.buffer.read(131073)
+        if len(raw) > 131072:
+            raise ValueError('请求过大')
+        request = json.loads(raw or b'{}')
+        if not isinstance(request, dict):
+            raise ValueError('请求必须是 JSON 对象')
+        payload = dispatch(mode, request, caller)
+        payload.setdefault('ok', True)
+        payload['helperVersion'] = runtime.VERSION
+        print(json.dumps(payload, ensure_ascii=False))
+
+
+if __name__ == '__main__':
+    os.umask(0o077)
+    try:
+        main()
+    except Exception as error:
+        print(json.dumps({'ok': False, 'error': str(error)}, ensure_ascii=False))
+        sys.exit(1 if len(sys.argv) > 2 else 0)
