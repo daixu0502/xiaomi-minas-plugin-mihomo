@@ -9,6 +9,8 @@ plugin_user=$(printf '%s\n' "$SRC_DIR" | sed -n 's#^/nas/pool[^/]*/\(u[0-9][0-9]
 PLUGIN_HOME=${PLUG_HOME_DIR:-/home/$plugin_user/plugin/mihomo}
 ETC_DIR="$PLUGIN_HOME/etc"
 VAR_DIR="$PLUGIN_HOME/var"
+RUNTIME_DIR=$(python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" "$PLUGIN_HOME") || exit 1
+export TMPDIR="$RUNTIME_DIR"
 BIN="$SCRIPT_DIR/mihomo"
 # Runtime updates must never replace files covered by INFO.abstract.
 [ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
@@ -59,11 +61,11 @@ do_import() {
     [ -s "$CONFIG_FILE" ] || json_error "配置文件不存在"
 
     mkdir -p "$VAR_DIR" "$ETC_DIR/rules"
-    exec 9>"$VAR_DIR/rule-provider.lock"
+    exec 9>"$RUNTIME_DIR/rule-provider.lock"
     flock -n 9 || json_error "另一个规则提供者操作正在进行"
     umask 077
-    config_tmp="$VAR_DIR/config.rule-provider.$$"
-    test_log="$VAR_DIR/rule-provider-test.$$"
+    config_tmp="$RUNTIME_DIR/config.rule-provider.$$"
+    test_log="$RUNTIME_DIR/rule-provider-test.$$"
     if ! python3 "$EDITOR" "$CONFIG_FILE" "$config_tmp" "$provider_name" "$provider_url" \
         "$provider_behavior" "$provider_format" "$provider_action" "$provider_via"; then
         json_error "生成规则提供者配置失败"
@@ -75,7 +77,7 @@ do_import() {
     fi
 
     cp "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak"
-    mv -f "$config_tmp" "$CONFIG_FILE"
+    python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$config_tmp" "$CONFIG_FILE"
     config_tmp=""
     chmod 0600 "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak"
     if ! activation=$(hot_apply config); then

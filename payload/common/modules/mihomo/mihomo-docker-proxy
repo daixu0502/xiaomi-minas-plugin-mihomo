@@ -3,7 +3,8 @@ set -eu
 
 DROPIN_DIR=/etc/systemd/system/docker.service.d
 DROPIN_FILE="$DROPIN_DIR/90-mihomo-proxy.conf"
-LOCK_FILE=/run/mihomo-docker-proxy.lock
+# Privileged transaction lock, not a user cache. Must keep a protected inode.
+LOCK_FILE=/data/.minas-privileged/modules/mihomo/proxy.lock
 ACTION=${1:-status}
 FORCE_CHECK=${3:-}
 PROXY_PORT=${2:-}

@@ -24,7 +24,7 @@ def api(user, request):
     if action == 'status' and force:
         args.append('fresh')
     def invoke():
-        env = {'PATH':'/data/docker:/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL':'C.UTF-8', 'PYTHONDONTWRITEBYTECODE':'1'}
+        env = {'PATH':'/data/docker:/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL':'C.UTF-8', 'PYTHONDONTWRITEBYTECODE':'1', 'MINAS_CACHE_USER':user}
         result = subprocess.run(args, input='', capture_output=True, text=True, env=env, timeout=110)
         if result.returncode:
             raise ValueError('Docker 代理助手执行失败')

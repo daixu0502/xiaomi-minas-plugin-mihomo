@@ -9,6 +9,8 @@ plugin_user=$(printf '%s\n' "$SRC_DIR" | sed -n 's#^/nas/pool[^/]*/\(u[0-9][0-9]
 PLUGIN_HOME=${PLUG_HOME_DIR:-/home/$plugin_user/plugin/mihomo}
 ETC_DIR="$PLUGIN_HOME/etc"
 VAR_DIR="$PLUGIN_HOME/var"
+RUNTIME_DIR=$(python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" "$PLUGIN_HOME") || exit 1
+export TMPDIR="$RUNTIME_DIR"
 BIN="$SCRIPT_DIR/mihomo"
 # Runtime updates must never replace files covered by INFO.abstract.
 [ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
@@ -50,7 +52,7 @@ json_error() {
 download_https() {
     download_url=$1
     download_target=$2
-    download_log="$VAR_DIR/geodata-download.$$"
+    download_log="$RUNTIME_DIR/geodata-download.$$"
     download_code=0
     download_http=$(curl --silent --show-error --fail --location \
         --proto '=https' --proto-redir '=https' \
@@ -63,7 +65,7 @@ download_https() {
 }
 
 fetch_release_metadata() {
-    release_tmp="$VAR_DIR/geodata-release.$$"
+    release_tmp="$RUNTIME_DIR/geodata-release.$$"
     download_https "$RELEASE_API" "$release_tmp" \
         || json_error "无法连接 GitHub 获取 Geo 数据发布信息"
     [ -s "$release_tmp" ] || json_error "GitHub 返回了空的 Geo 数据发布信息"
@@ -154,12 +156,12 @@ do_update() {
     operation_lock
     command -v flock >/dev/null 2>&1 || json_error "设备缺少 flock，无法安全更新 Geo 数据"
     mkdir -p "$ETC_DIR" "$VAR_DIR"
-    exec 9>"$VAR_DIR/geodata-update.lock"
+    exec 9>"$RUNTIME_DIR/geodata-update.lock"
     flock -n 9 || json_error "另一个 Geo 数据更新任务正在运行"
     umask 077
-    geoip_tmp="$VAR_DIR/GeoIP.dat.$$"
-    geosite_tmp="$VAR_DIR/GeoSite.dat.$$"
-    test_log="$VAR_DIR/geodata-test.$$"
+    geoip_tmp="$RUNTIME_DIR/GeoIP.dat.$$"
+    geosite_tmp="$RUNTIME_DIR/GeoSite.dat.$$"
+    test_log="$RUNTIME_DIR/geodata-test.$$"
     task_progress release 8 "正在查询官方 Geo 数据版本"
     fetch_release_metadata
     task_progress downloading_geoip 20 "正在下载并校验 GeoIP（大文件可能需要等待）"
@@ -176,15 +178,15 @@ do_update() {
         task_progress unchanged 95 "Geo 数据内容未改变，无需重载或重启"
     else
     task_progress validating 68 "正在校验新 Geo 数据与当前配置"
-    geoip_backup="$VAR_DIR/GeoIP.dat.backup.$$"
-    geosite_backup="$VAR_DIR/GeoSite.dat.backup.$$"
+    geoip_backup="$RUNTIME_DIR/GeoIP.dat.backup.$$"
+    geosite_backup="$RUNTIME_DIR/GeoSite.dat.backup.$$"
     geoip_had=false
     geosite_had=false
     [ -f "$GEOIP_FILE" ] && cp "$GEOIP_FILE" "$geoip_backup" && geoip_had=true
     [ -f "$GEOSITE_FILE" ] && cp "$GEOSITE_FILE" "$geosite_backup" && geosite_had=true
-    mv -f "$geoip_tmp" "$GEOIP_FILE"
+    python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$geoip_tmp" "$GEOIP_FILE"
     geoip_tmp=""
-    mv -f "$geosite_tmp" "$GEOSITE_FILE"
+    python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$geosite_tmp" "$GEOSITE_FILE"
     geosite_tmp=""
     chmod 0600 "$GEOIP_FILE" "$GEOSITE_FILE"
 
@@ -207,11 +209,11 @@ do_update() {
     fi
 
     updated_at=$(date '+%Y-%m-%d %H:%M:%S %z')
-    meta_tmp="$VAR_DIR/geodata.meta.$$"
+    meta_tmp="$RUNTIME_DIR/geodata.meta.$$"
     jq -n --arg updatedAt "$updated_at" --arg geoipSha256 "$geoip_sha" \
         --arg geositeSha256 "$geosite_sha" \
         '{updatedAt:$updatedAt,geoipSha256:$geoipSha256,geositeSha256:$geositeSha256}' > "$meta_tmp"
-    mv -f "$meta_tmp" "$META_FILE"
+    python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$meta_tmp" "$META_FILE"
     meta_tmp=""
     chmod 0600 "$META_FILE"
     jq -n --arg updatedAt "$updated_at" --argjson restarted "$was_running" --argjson changed "$changed" \
@@ -232,8 +234,8 @@ do_apply_policy() {
     fi
     mkdir -p "$VAR_DIR"
     umask 077
-    config_tmp="$VAR_DIR/config.geodata.$$"
-    test_log="$VAR_DIR/geodata-policy-test.$$"
+    config_tmp="$RUNTIME_DIR/config.geodata.$$"
+    test_log="$RUNTIME_DIR/geodata-policy-test.$$"
     awk -v policy="$policy" '
         function emit_rules() {
             print "rules:"
@@ -277,7 +279,7 @@ do_apply_policy() {
     before_file="$ETC_DIR/config.before-geodata-policy.yaml"
     [ -f "$before_file" ] || cp "$CONFIG_FILE" "$before_file"
     cp "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak"
-    mv -f "$config_tmp" "$CONFIG_FILE"
+    python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$config_tmp" "$CONFIG_FILE"
     config_tmp=""
     chmod 0600 "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak" "$before_file"
     if ! activation=$(hot_apply config); then
@@ -288,10 +290,10 @@ do_apply_policy() {
     fi
 
     applied_at=$(date '+%Y-%m-%d %H:%M:%S %z')
-    meta_tmp="$VAR_DIR/geodata-policy.meta.$$"
+    meta_tmp="$RUNTIME_DIR/geodata-policy.meta.$$"
     jq -n --arg policy "$policy" --arg appliedAt "$applied_at" \
         '{policy:$policy,appliedAt:$appliedAt}' > "$meta_tmp"
-    mv -f "$meta_tmp" "$POLICY_FILE"
+    python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$meta_tmp" "$POLICY_FILE"
     meta_tmp=""
     chmod 0600 "$POLICY_FILE"
     jq -n --arg policy "$policy" --arg appliedAt "$applied_at" \

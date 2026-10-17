@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_NAME='mihomo'
 PLUGIN_LABEL='Mihomo'
-PLUGIN_VERSION='1.7.31'
+PLUGIN_VERSION='1.7.32'
 UNINSTALL_NOTE='卸载会停止该用户的代理；若 Docker 正使用此代理，会撤销它并重启 Docker。其他用户插件和普通文件保留。'
 
 # Shared frontend; keep this section consistent across the four manage.sh files.
@@ -210,6 +210,7 @@ installer_main() {
     else installer_emit_uninstall > "$WORK_DIR/bundle/remote-uninstall.sh"; fi
     if [[ $ACTION == install ]]; then
         [[ -d $SCRIPT_DIR/payload ]] || installer_error "安装包缺少 payload 目录。"
+        [[ ! -e $SCRIPT_DIR/payload/system ]] || installer_error "检测到旧版重复资源目录 payload/system，请先整理源码。"
         cp -R "$SCRIPT_DIR/payload" "$WORK_DIR/bundle/payload"
         if declare -F installer_prepare_payload >/dev/null; then installer_prepare_payload "$WORK_DIR/bundle"; fi
     fi
@@ -411,6 +412,13 @@ nas_uninstall() {
     mkdir -p "$NAS_BACKUP"
     chmod 0700 "$NAS_BACKUP"
     nas_log "停止所选用户的插件并备份配置……"
+    if [ -x /data/.minas-privileged/minas-helper ]; then
+        nas_response=$(jq -n --arg pluginUser "$NAS_USER" '{action:"docker_proxy_disable",pluginUser:$pluginUser}' | /data/.minas-privileged/minas-helper mihomo) || nas_fail "无法撤销 Docker 代理，未卸载插件。"
+        printf '%s' "$nas_response" | jq -e '.ok == true' >/dev/null || nas_fail "Docker 代理撤销失败，未卸载插件。"
+    fi
+    if [ -f /data/.minas-privileged/component_admin.py ]; then
+        python3 /data/.minas-privileged/component_admin.py remove --plugin "$NAS_PLUGIN" --user "$NAS_USER" || nas_fail "公共权限模块卸载失败"
+    fi
     plugincenter -u "$NAS_USER" -p "$NAS_PLUGIN" disable >/dev/null 2>&1 || true
     if [ -x "$NAS_HOME/scripts/control" ]; then
         PLUG_USER="$NAS_USER" PLUG_NAME="$NAS_PLUGIN" PLUG_HOME_DIR="$NAS_HOME" PLUG_SRC_DIR="$NAS_SRC" \
@@ -422,26 +430,12 @@ nas_uninstall() {
     nas_remove_entry
     case "$NAS_PLUGIN" in
         mihomo)
-            nas_port=$(sed -n 's/^MIXED_PORT=\([0-9][0-9]*\)$/\1/p' "$NAS_HOME/etc/ports.env" 2>/dev/null | head -n 1)
-            nas_helper=/data/.minas-privileged/minas-helper
-            if [ -x "$nas_helper" ] && [ -n "$nas_port" ]; then
-                jq -n --arg pluginUser "$NAS_USER" '{action:"docker_proxy_disable",pluginUser:$pluginUser}' | "$nas_helper" mihomo >/dev/null || nas_fail "无法撤销该用户的 Docker 代理。"
-            fi
             rm -f "/etc/sudoers.d/mihomo-docker-proxy-$NAS_USER" "/etc/cron.d/mihomo-plugin-$NAS_USER"
             if [ -f /etc/sudoers.d/mihomo-docker-proxy ] && grep -q "^$NAS_USER[[:space:]]" /etc/sudoers.d/mihomo-docker-proxy; then rm -f /etc/sudoers.d/mihomo-docker-proxy; fi
             if [ -f /etc/cron.d/mihomo-plugin ] && grep -Fq "boot.sh $NAS_USER" /etc/cron.d/mihomo-plugin; then rm -f /etc/cron.d/mihomo-plugin; fi
             nas_hotplug=$(jq -r '.settings.system_hotplug // empty' /etc/config/plugin)
             if [ -n "$nas_hotplug" ]; then rm -f "$nas_hotplug/net/$NAS_USER.$NAS_PLUGIN"; fi;;
-        dockermanager)
-            rm -f "/etc/sudoers.d/dockermanager-$NAS_USER" "/etc/cron.d/dockermanager-$NAS_USER";;
-        quickshare)
-            rm -f "/etc/cron.d/quickshare-$NAS_USER";;
-        nascenter)
-            rm -f "/etc/sudoers.d/nascenter-$NAS_USER";;
     esac
-    if [ -f /data/.minas-privileged/component_admin.py ]; then
-        python3 /data/.minas-privileged/component_admin.py remove --plugin "$NAS_PLUGIN" --user "$NAS_USER" || nas_fail "公共权限模块卸载失败"
-    fi
     rm -f "$NAS_WEB_ROOT/$NAS_USER/$NAS_PLUGIN"
     # Paths were checked in full by nas_check_user; repeat immediately before removal.
     nas_pool_path "$NAS_SRC" pluginsrc; nas_pool_path "$NAS_TMP" plugintmp
@@ -452,16 +446,6 @@ nas_uninstall() {
                 if ! ls /etc/sudoers.d/mihomo-docker-proxy* >/dev/null 2>&1; then
                     rm -f /data/plugin/.mihomo-system/mihomo-docker-proxy /data/plugin/.mihomo-system/docker_proxy_status.py
                     rmdir /data/plugin/.mihomo-system 2>/dev/null || true
-                fi;;
-            dockermanager)
-                if ! ls /etc/sudoers.d/dockermanager-u* >/dev/null 2>&1; then
-                    rm -f /data/plugin/.dockermanager-system/docker-manager-helper
-                    rmdir /data/plugin/.dockermanager-system 2>/dev/null || true
-                fi;;
-            nascenter)
-                if ! ls /etc/sudoers.d/nascenter-u* >/dev/null 2>&1; then
-                    rm -f /data/plugin/.nascenter-system/nas-center-helper
-                    rmdir /data/plugin/.nascenter-system 2>/dev/null || true
                 fi;;
         esac
         rm -f "/data/plugin/www/icon/$NAS_PLUGIN.icon"
@@ -545,8 +529,6 @@ ICON_DIR="/data/plugin/www/icon"
 ICON_FILE="$ICON_DIR/$PLUGIN_NAME.icon"
 CRON_FILE="/etc/cron.d/mihomo-plugin-$PLUGIN_USER"
 LOCK_FILE="/data/plugin/.$PLUGIN_USER.plugins.lock"
-DOCKER_HELPER="/data/plugin/.mihomo-system/mihomo-docker-proxy"
-DOCKER_SUDOERS="/etc/sudoers.d/mihomo-docker-proxy-$PLUGIN_USER"
 DOCKER_SUDOERS_LEGACY="/etc/sudoers.d/mihomo-docker-proxy"
 PORTS_FILE="$ETC_DIR/ports.env"
 
@@ -569,7 +551,6 @@ rm -rf "$stage_src"
 mkdir -p "$stage_src"
 cp -R "$PAYLOAD_DIR/files" "$stage_src/files"
 cp -R "$PAYLOAD_DIR/ui" "$stage_src/ui"
-cp -R "$PAYLOAD_DIR/system" "$stage_src/system"
 
 core_version_of() {
     candidate_core=$1
@@ -605,7 +586,6 @@ if [ -x "$existing_core" ] && [ -n "$bundled_core_version" ]; then
     esac
 fi
 chmod 0755 "$stage_src/files/mihomo" "$stage_src/files/"*.sh "$stage_src/ui/mihomo.cgi"
-chmod 0755 "$stage_src/system/mihomo-docker-proxy"
 chmod 0644 "$stage_src/files/"*.py
 chmod 0644 "$stage_src/ui/index.html" "$stage_src/ui/app.js" "$stage_src/ui/client-bridge.js" "$stage_src/ui/style.css" "$stage_src/ui/palette.css" "$stage_src/ui/config"
 
@@ -804,6 +784,7 @@ if [ -f "$DOCKER_SUDOERS_LEGACY" ] && grep -q "^$PLUGIN_USER[[:space:]]" "$DOCKE
     rm -f "$DOCKER_SUDOERS_LEGACY"
 fi
 
+runuser -u "$PLUGIN_USER" -- python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --migrate "$PLUGIN_HOME" || nas_fail "旧缓存迁移失败，未启动新服务"
 start_ok=0
 if runuser -u "$PLUGIN_USER" -- /usr/bin/env \
     PLUG_USER="$PLUGIN_USER" PLUG_NAME="$PLUGIN_NAME" \
@@ -829,7 +810,7 @@ if [ "$start_ok" = "1" ]; then
 fi
 
 if [ "$start_ok" != "1" ]; then
-    fail "插件文件已安装，但 Mihomo 启动失败；请查看 $VAR_DIR/mihomo.log"
+    fail "插件文件已安装，但 Mihomo 启动失败；请查看 $PLUGIN_HOME/tmp/runtime/mihomo.log"
 fi
 
 sleep 1
@@ -837,7 +818,7 @@ if ! runuser -u "$PLUGIN_USER" -- /usr/bin/env \
     PLUG_USER="$PLUGIN_USER" PLUG_NAME="$PLUGIN_NAME" \
     PLUG_HOME_DIR="$PLUGIN_HOME" PLUG_SRC_DIR="$SRC_DIR" \
     "$SCRIPTS_DIR/control" status >/dev/null 2>&1; then
-    fail "Mihomo 进程未保持运行；请查看 $VAR_DIR/mihomo.log"
+    fail "Mihomo 进程未保持运行；请查看 $PLUGIN_HOME/tmp/runtime/mihomo.log"
 fi
 
 flock -x 9
@@ -854,8 +835,9 @@ echo "Mihomo $INSTALLED_CORE_VERSION 已启动。"
 echo "APP 插件清单：$LIST_FILE"
 echo "配置文件：$ETC_DIR/config.yaml"
 echo "代理端口：$MIXED_PORT；控制端口：$CONTROLLER_PORT"
-echo "运行日志：$VAR_DIR/mihomo.log"
-echo "清单安装前备份：$backup_file"
+echo "运行日志：$PLUGIN_HOME/tmp/runtime/mihomo.log"
+env PLUG_USER="$PLUGIN_USER" PLUG_NAME="$PLUGIN_NAME" PLUG_HOME_DIR="$PLUGIN_HOME" PLUG_SRC_DIR="$SRC_DIR" PLUG_TMP_DIR="$TMP_DIR" PLUG_STATUS=unverified /usr/bin/plugin.sh verify || nas_fail "系统完整性校验失败"
+rm -f "$backup_file"
 NAS_INSTALL_SCRIPT
 }
 installer_emit_uninstall() {

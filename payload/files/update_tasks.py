@@ -18,8 +18,10 @@ import uuid
 HERE = Path(__file__).resolve().parent
 HOME = Path(os.environ.get('PLUG_HOME_DIR', '/home/' + HERE.parts[3] + '/plugin/mihomo'))
 VAR = HOME / 'var'
-TASKS = VAR / 'update-tasks'
-LOCK = VAR / 'update-operation.lock'
+from plugin_paths import runtime_directory
+RUNTIME = runtime_directory(HOME)
+TASKS = RUNTIME / 'update-tasks'
+LOCK = RUNTIME / 'update-operation.lock'
 ACTIONS = {'subscription_update', 'subscription_import', 'geodata_update', 'geodata_apply_policy',
            'rule_provider_import', 'update_provider', 'update_rule_provider'}
 TITLES = {'subscription_update': '更新订阅', 'subscription_import': '导入订阅',
@@ -97,7 +99,7 @@ def controller(method, path, body=None):
 
 
 def hot_apply(kind):
-    pid_file = VAR / 'mihomo.pid'
+    pid_file = RUNTIME / 'mihomo.pid'
     try:
         pid = int(pid_file.read_text().strip())
         command = Path('/proc/%d/cmdline' % pid).read_bytes().split(b'\0')[0].decode()

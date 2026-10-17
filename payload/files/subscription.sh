@@ -9,6 +9,8 @@ plugin_user=$(printf '%s\n' "$SRC_DIR" | sed -n 's#^/nas/pool[^/]*/\(u[0-9][0-9]
 PLUGIN_HOME=${PLUG_HOME_DIR:-/home/$plugin_user/plugin/mihomo}
 ETC_DIR="$PLUGIN_HOME/etc"
 VAR_DIR="$PLUGIN_HOME/var"
+RUNTIME_DIR=$(python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" "$PLUGIN_HOME") || exit 1
+export TMPDIR="$RUNTIME_DIR"
 BIN="$SCRIPT_DIR/mihomo"
 # Runtime updates must never replace files covered by INFO.abstract.
 [ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
@@ -62,9 +64,9 @@ download_provider() {
     subscription_url=$1
     mkdir -p "$VAR_DIR" "$PROVIDER_DIR"
     umask 077
-    raw_tmp="$VAR_DIR/subscription.raw.$$"
-    provider_tmp="$VAR_DIR/subscription.provider.$$"
-    download_log="$VAR_DIR/subscription-download.$$"
+    raw_tmp="$RUNTIME_DIR/subscription.raw.$$"
+    provider_tmp="$RUNTIME_DIR/subscription.provider.$$"
+    download_log="$RUNTIME_DIR/subscription-download.$$"
 
     task_progress downloading 12 "正在下载订阅（有限超时与重试）"
     download_code=0
@@ -105,7 +107,7 @@ download_provider() {
 }
 
 backup_provider() {
-    provider_backup="$VAR_DIR/subscription.provider.backup.$$"
+    provider_backup="$RUNTIME_DIR/subscription.provider.backup.$$"
     if [ -f "$PROVIDER_FILE" ]; then
         cp "$PROVIDER_FILE" "$provider_backup"
     fi
@@ -122,7 +124,7 @@ restore_provider() {
 
 activate_candidate_provider() {
     backup_provider
-    mv -f "$provider_tmp" "$PROVIDER_FILE"
+    python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$provider_tmp" "$PROVIDER_FILE"
     provider_tmp=""
     chmod 0600 "$PROVIDER_FILE"
 }
@@ -132,13 +134,13 @@ write_metadata() {
     source_host=$(printf '%s' "$subscription_url" | sed -n 's#^https://\([^/?#]*\).*#https://\1#p')
     updated_at=$(date '+%Y-%m-%d %H:%M:%S %z')
     proxy_count=$(grep -Ec '^[[:space:]]*-[[:space:]]' "$PROVIDER_FILE" 2>/dev/null || true)
-    meta_tmp="$VAR_DIR/subscription.meta.$$"
+    meta_tmp="$RUNTIME_DIR/subscription.meta.$$"
     jq -n \
         --arg source "$source_host" \
         --arg updatedAt "$updated_at" \
         --argjson proxyCount "${proxy_count:-0}" \
         '{source:$source,updatedAt:$updatedAt,proxyCount:$proxyCount}' > "$meta_tmp"
-    mv -f "$meta_tmp" "$META_FILE"
+    python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$meta_tmp" "$META_FILE"
     meta_tmp=""
     chmod 0600 "$META_FILE"
 }
@@ -162,8 +164,8 @@ do_import() {
     download_provider "$subscription_url"
     ensure_empty_provider "$MANUAL_FILE"
 
-    config_tmp="$VAR_DIR/config.subscription.$$"
-    test_log="$VAR_DIR/subscription-test.$$"
+    config_tmp="$RUNTIME_DIR/config.subscription.$$"
+    test_log="$RUNTIME_DIR/subscription-test.$$"
     task_progress validating 62 "正在校验订阅节点与受管配置"
     write_managed_config "$config_tmp" "$provider_tmp" "$MANUAL_FILE"
     chmod 0600 "$config_tmp"
@@ -179,7 +181,7 @@ do_import() {
     cp "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak"
     activate_candidate_provider
     write_managed_config "$config_tmp"
-    mv -f "$config_tmp" "$CONFIG_FILE"
+    python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$config_tmp" "$CONFIG_FILE"
     config_tmp=""
     chmod 0600 "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak"
 
@@ -204,7 +206,7 @@ do_update() {
     subscription_url=$(tr -d '\r\n' < "$URL_FILE")
     validate_url "$subscription_url"
     download_provider "$subscription_url"
-    test_log="$VAR_DIR/subscription-test.$$"
+    test_log="$RUNTIME_DIR/subscription-test.$$"
     if [ -f "$PROVIDER_FILE" ] && cmp -s "$provider_tmp" "$PROVIDER_FILE"; then
         write_metadata "$subscription_url"
         jq -n --argjson count "$(grep -Ec '^[[:space:]]*-[[:space:]]' "$PROVIDER_FILE" || true)" \

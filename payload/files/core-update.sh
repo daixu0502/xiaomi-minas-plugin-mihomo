@@ -9,6 +9,8 @@ plugin_user=$(printf '%s\n' "$SRC_DIR" | sed -n 's#^/nas/pool[^/]*/\(u[0-9][0-9]
 PLUGIN_HOME=${PLUG_HOME_DIR:-/home/$plugin_user/plugin/mihomo}
 ETC_DIR="$PLUGIN_HOME/etc"
 VAR_DIR="$PLUGIN_HOME/var"
+RUNTIME_DIR=$(python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" "$PLUGIN_HOME") || exit 1
+export TMPDIR="$RUNTIME_DIR"
 BIN="$SCRIPT_DIR/mihomo"
 # Runtime updates must never replace files covered by INFO.abstract.
 [ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
@@ -74,7 +76,7 @@ download_https() {
 fetch_latest() {
     mkdir -p "$VAR_DIR"
     umask 077
-    api_tmp="$VAR_DIR/mihomo-release.$$"
+    api_tmp="$RUNTIME_DIR/mihomo-release.$$"
     download_https "$API_URL" "$api_tmp" 'xiaomi-storage-mihomo-plugin/1.5.0' \
         || json_error "无法连接 GitHub 检查 Mihomo 更新"
     [ -s "$api_tmp" ] || json_error "GitHub 返回了空的版本信息"
@@ -107,11 +109,11 @@ write_check_metadata() {
     current=$1
     latest=$2
     checked_at=$(date '+%Y-%m-%d %H:%M:%S %z')
-    meta_tmp="$VAR_DIR/core-update.meta.$$"
+    meta_tmp="$RUNTIME_DIR/core-update.meta.$$"
     jq -n --arg currentVersion "$current" --arg latestVersion "$latest" \
         --arg checkedAt "$checked_at" \
         '{currentVersion:$currentVersion,latestVersion:$latestVersion,checkedAt:$checkedAt}' > "$meta_tmp"
-    mv -f "$meta_tmp" "$META_FILE"
+    python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$meta_tmp" "$META_FILE"
     meta_tmp=""
     chmod 0600 "$META_FILE"
 }
@@ -153,7 +155,7 @@ do_check() {
 do_update() {
     command -v flock >/dev/null 2>&1 || json_error "设备缺少 flock，无法安全更新核心"
     mkdir -p "$VAR_DIR"
-    exec 9>"$VAR_DIR/core-update.lock"
+    exec 9>"$RUNTIME_DIR/core-update.lock"
     flock -n 9 || json_error "另一个核心更新任务正在运行"
 
     fetch_latest
@@ -170,9 +172,9 @@ do_update() {
     fi
 
     umask 077
-    archive_tmp="$VAR_DIR/mihomo-$latest_version.gz.$$"
-    binary_tmp="$VAR_DIR/mihomo-$latest_version.$$"
-    test_log="$VAR_DIR/core-update-test.$$"
+    archive_tmp="$RUNTIME_DIR/mihomo-$latest_version.gz.$$"
+    binary_tmp="$RUNTIME_DIR/mihomo-$latest_version.$$"
+    test_log="$RUNTIME_DIR/core-update-test.$$"
     download_https "$asset_url" "$archive_tmp" 'xiaomi-storage-mihomo-plugin/1.5.0' \
         || json_error "Mihomo 核心下载失败，请检查网络或代理节点"
     archive_size=$(wc -c < "$archive_tmp")
@@ -200,13 +202,13 @@ do_update() {
     mkdir -p "$CORE_DIR"
     chmod 0700 "$CORE_DIR"
     CORE_TARGET="$CORE_DIR/mihomo"
-    rollback="$VAR_DIR/mihomo.core.rollback"
+    rollback="$RUNTIME_DIR/mihomo.core.rollback"
     cp "$BIN" "$rollback" || json_error "无法备份当前 Mihomo 核心"
     chmod 0700 "$rollback"
     if [ "$was_running" = "true" ]; then
         control_command stop >/dev/null 2>&1 || json_error "无法停止当前 Mihomo 核心"
     fi
-    if ! mv -f "$binary_tmp" "$CORE_TARGET"; then
+    if ! python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$binary_tmp" "$CORE_TARGET"; then
         [ "$was_running" = "true" ] && control_command start >/dev/null 2>&1 || true
         json_error "无法替换 Mihomo 核心"
     fi
@@ -221,6 +223,7 @@ do_update() {
     fi
 
     write_check_metadata "$latest_version" "$latest_version"
+    rm -f "$rollback"
     jq -n --arg previousVersion "$current" --arg currentVersion "$latest_version" \
         '{ok:true,updated:true,previousVersion:$previousVersion,currentVersion:$currentVersion,latestVersion:$currentVersion}'
 }

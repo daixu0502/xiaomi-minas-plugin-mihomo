@@ -14,12 +14,14 @@ fi
 BIN="$SCRIPT_DIR/mihomo"
 ETC_DIR="$PLUGIN_HOME/etc"
 VAR_DIR="$PLUGIN_HOME/var"
+RUNTIME_DIR=$(python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" "$PLUGIN_HOME") || exit 1
+export TMPDIR="$RUNTIME_DIR"
 [ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
 CONFIG_FILE="$ETC_DIR/config.yaml"
 SECRET_FILE="$ETC_DIR/api.secret"
 PORTS_FILE="$ETC_DIR/ports.env"
-PID_FILE="$VAR_DIR/mihomo.pid"
-LOG_FILE="$VAR_DIR/mihomo.log"
+PID_FILE="$RUNTIME_DIR/mihomo.pid"
+LOG_FILE="$RUNTIME_DIR/mihomo.log"
 MIXED_PORT=7890
 CONTROLLER_PORT=9090
 if [ -r "$PORTS_FILE" ]; then

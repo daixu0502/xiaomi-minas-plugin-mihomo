@@ -6,7 +6,7 @@ task_progress() {
 operation_lock() {
     mkdir -p "$VAR_DIR"
     [ "${MIHOMO_TASK_LOCKED:-}" != 1 ] || return 0
-    exec 8>"$VAR_DIR/update-operation.lock"
+    exec 8>"$RUNTIME_DIR/update-operation.lock"
     flock -n 8 || json_error "已有更新或配置应用任务正在执行，请等待完成"
 }
 hot_apply() {

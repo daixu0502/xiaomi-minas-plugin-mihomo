@@ -9,6 +9,8 @@ plugin_user=$(printf '%s\n' "$SRC_DIR" | sed -n 's#^/nas/pool[^/]*/\(u[0-9][0-9]
 PLUGIN_HOME=${PLUG_HOME_DIR:-/home/$plugin_user/plugin/mihomo}
 ETC_DIR="$PLUGIN_HOME/etc"
 VAR_DIR="$PLUGIN_HOME/var"
+RUNTIME_DIR=$(python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" "$PLUGIN_HOME") || exit 1
+export TMPDIR="$RUNTIME_DIR"
 BIN="$SCRIPT_DIR/mihomo"
 # Runtime updates must never replace files covered by INFO.abstract.
 [ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
@@ -63,9 +65,9 @@ restore_manual() {
 prepare_change() {
     mkdir -p "$VAR_DIR" "$PROVIDER_DIR"
     umask 077
-    exec 9>"$VAR_DIR/manual-node.lock"
+    exec 9>"$RUNTIME_DIR/manual-node.lock"
     flock -n 9 || json_error "另一个手动节点操作正在进行，请稍后重试"
-    manual_backup="$VAR_DIR/manual-node.backup.$$"
+    manual_backup="$RUNTIME_DIR/manual-node.backup.$$"
     if [ -s "$MANUAL_FILE" ]; then
         cp "$MANUAL_FILE" "$manual_backup"
     fi
@@ -74,7 +76,7 @@ prepare_change() {
 }
 
 prepare_config_candidate() {
-    config_tmp="$VAR_DIR/config.manual-node.$$"
+    config_tmp="$RUNTIME_DIR/config.manual-node.$$"
     if grep -q '^# Managed by the Xiaomi Smart Storage Mihomo plugin' "$CONFIG_FILE" 2>/dev/null \
        && grep -q '^[[:space:]]*APP-MANUAL:' "$CONFIG_FILE" 2>/dev/null; then
         cp "$CONFIG_FILE" "$config_tmp"
@@ -85,13 +87,13 @@ prepare_config_candidate() {
 }
 
 validate_and_apply() {
-    test_log="$VAR_DIR/manual-node-test.$$"
+    test_log="$RUNTIME_DIR/manual-node-test.$$"
     if ! "$BIN" -t -d "$ETC_DIR" -f "$config_tmp" > "$test_log" 2>&1; then
         restore_manual
         json_error "节点或受管配置无法通过 Mihomo 校验，未修改现有配置"
     fi
 
-    config_backup="$VAR_DIR/config.manual-node.backup.$$"
+    config_backup="$RUNTIME_DIR/config.manual-node.backup.$$"
     cp "$CONFIG_FILE" "$config_backup"
     if ! cmp -s "$CONFIG_FILE" "$config_tmp"; then
         if [ ! -f "$BEFORE_FILE" ]; then
@@ -99,7 +101,7 @@ validate_and_apply() {
             chmod 0600 "$BEFORE_FILE"
         fi
         cp "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak"
-        mv -f "$config_tmp" "$CONFIG_FILE"
+        python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$config_tmp" "$CONFIG_FILE"
         config_tmp=""
         chmod 0600 "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak"
     fi
@@ -123,7 +125,7 @@ do_list() {
 do_import() {
     raw_node=$(cat)
     [ -n "$raw_node" ] || json_error "请输入单节点分享链接或 Clash JSON"
-    parse_log="$VAR_DIR/manual-node-parse.$$"
+    parse_log="$RUNTIME_DIR/manual-node-parse.$$"
     mkdir -p "$VAR_DIR"
     if ! node_json=$(printf '%s' "$raw_node" | python3 "$PARSER" 2> "$parse_log"); then
         parse_error=$(tail -n 1 "$parse_log" 2>/dev/null || true)
@@ -137,11 +139,11 @@ do_import() {
     if jq -e --arg name "$node_name" 'any((.proxies // [])[]; .name == $name)' "$MANUAL_FILE" >/dev/null 2>&1; then
         replaced=true
     fi
-    manual_tmp="$VAR_DIR/manual-node.provider.$$"
+    manual_tmp="$RUNTIME_DIR/manual-node.provider.$$"
     jq --argjson node "$node_json" \
        '.proxies = ((((.proxies // []) | map(select(.name != $node.name)))) + [$node])' \
        "$MANUAL_FILE" > "$manual_tmp"
-    mv -f "$manual_tmp" "$MANUAL_FILE"
+    python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$manual_tmp" "$MANUAL_FILE"
     manual_tmp=""
     chmod 0600 "$MANUAL_FILE"
 
@@ -157,10 +159,10 @@ do_delete() {
     prepare_change
     jq -e --arg name "$node_name" 'any((.proxies // [])[]; .name == $name)' "$MANUAL_FILE" >/dev/null 2>&1 \
         || json_error "没有找到该手动节点"
-    manual_tmp="$VAR_DIR/manual-node.provider.$$"
+    manual_tmp="$RUNTIME_DIR/manual-node.provider.$$"
     jq --arg name "$node_name" '.proxies = ((.proxies // []) | map(select(.name != $name)))' \
        "$MANUAL_FILE" > "$manual_tmp"
-    mv -f "$manual_tmp" "$MANUAL_FILE"
+    python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$manual_tmp" "$MANUAL_FILE"
     manual_tmp=""
     chmod 0600 "$MANUAL_FILE"
     prepare_config_candidate

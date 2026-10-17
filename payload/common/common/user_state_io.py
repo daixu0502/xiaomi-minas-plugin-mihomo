@@ -15,7 +15,7 @@ import subprocess
 import sys
 
 HOME_ROOT = Path('/home')
-PLUGINS = {'dockermanager', 'nascenter'}
+PLUGINS = {'dockermanager', 'nascenter', 'mihomo', 'taskcenter'}
 MAX_BYTES = 4 * 1024 * 1024
 
 _PROGRAM = r'''
@@ -25,10 +25,18 @@ home,operation,name=sys.argv[1:]
 home=Path(home)
 for node in (home.parent,home):
     if node.is_symlink() or not node.is_dir():raise ValueError('plugin directory unavailable')
-directory=home/'var'
+link=home/'tmp'
+if not link.is_symlink():raise ValueError('official cache link unavailable')
+resolved=link.resolve(strict=True)
+import re
+match=re.fullmatch(r'/nas/(pool[^/]+)/'+home.parts[2]+r'/plugin/plugintmp/'+home.name,str(resolved))
+if not match or not os.path.ismount('/nas/'+match[1]):raise ValueError('data pool unavailable')
+if resolved.stat().st_uid!=os.geteuid():raise ValueError('cache owner mismatch')
+directory=resolved/'cache'
 if directory.is_symlink():raise ValueError('state directory is a symlink')
 directory.mkdir(mode=0o700,exist_ok=True)
 if not directory.is_dir():raise ValueError('state directory unavailable')
+if directory.stat().st_uid!=os.geteuid() or directory.stat().st_mode&0o077:raise ValueError('unsafe cache permissions')
 target=directory/name
 if target.is_symlink():raise ValueError('state file is a symlink')
 if operation=='lock':
@@ -38,6 +46,9 @@ if operation=='lock':
     except BlockingIOError:print('busy',flush=True);sys.exit(2)
     print('locked',flush=True)
     sys.stdin.buffer.read()
+elif operation=='delete':
+    target.unlink(missing_ok=True)
+    print('null')
 elif operation=='read':
     try:
         fd=os.open(target,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
@@ -97,6 +108,11 @@ def write_state(user, plugin, name, value):
     result = subprocess.run(**_arguments(user, plugin, name, 'write'),
                             input=data, capture_output=True, timeout=8)
     if result.returncode:raise ValueError('无法保存插件运行状态')
+
+
+def delete_state(user, plugin, name):
+    result=subprocess.run(**_arguments(user,plugin,name,'delete'),capture_output=True,timeout=8)
+    if result.returncode:raise ValueError('无法移除插件缓存')
 
 
 @contextlib.contextmanager

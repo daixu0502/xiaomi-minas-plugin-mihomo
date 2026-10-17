@@ -3,16 +3,15 @@ import json
 import hashlib
 import os
 import socket
-import stat
 import subprocess
 import sys
 import time
-import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
 DROPIN = Path('/etc/systemd/system/docker.service.d/90-mihomo-proxy.conf')
-PROBE_CACHE = Path('/run')
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'common'))
+from user_state_io import read_state, write_state
 
 
 def run(args, timeout=2):
@@ -82,30 +81,21 @@ def probe(proxy):
 
 def cached_probe(proxy, force=False):
     """Only cache the external reachability test, not Docker's effective state."""
-    path = PROBE_CACHE / ('mihomo-proxy-probe-' + hashlib.sha256(proxy.encode()).hexdigest()[:20] + '.json')
+    user = os.environ.get('MINAS_CACHE_USER', '')
+    name = 'proxy-probe-' + hashlib.sha256(proxy.encode()).hexdigest()[:20] + '.json'
     if not force:
         try:
-            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-            with os.fdopen(fd, 'rb') as stream:
-                metadata = os.fstat(stream.fileno())
-                if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o077 or metadata.st_size > 4096:
-                    raise ValueError('invalid probe cache')
-                data = json.load(stream)
+            data = read_state(user, 'mihomo', name)
             if (isinstance(data,dict) and type(data.get('at')) in (int,float) and 0 <= time.monotonic()-data['at'] < 15 and
                     data.get('status') in ('ok','http_error','upstream_failed','probe_unavailable') and
                     (data.get('reachable') is None or type(data.get('reachable')) is bool)):
                 return data['reachable'], data['status']
-        except (OSError,ValueError,KeyError,TypeError): pass
+        except (OSError,ValueError,KeyError,TypeError,subprocess.SubprocessError): pass
     result = probe(proxy)
     if os.geteuid() == 0:
         try:
-            fd, temp = tempfile.mkstemp(prefix='.mihomo-probe-', dir=PROBE_CACHE)
-            try:
-                with os.fdopen(fd,'w') as stream:json.dump({'at':time.monotonic(),'reachable':result[0],'status':result[1]},stream)
-                os.replace(temp,path)
-            finally:
-                if os.path.exists(temp):os.unlink(temp)
-        except OSError: pass
+            write_state(user,'mihomo',name,{'at':time.monotonic(),'reachable':result[0],'status':result[1]})
+        except (OSError,ValueError,subprocess.SubprocessError): pass
     return result
 
 

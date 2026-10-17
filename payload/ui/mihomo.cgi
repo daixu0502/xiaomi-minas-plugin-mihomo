@@ -23,10 +23,11 @@ RULE_PROVIDER_MANAGER="$SRC_DIR/files/rule-provider.sh"
 DOCKER_PROXY_HELPER="/data/.minas-privileged/minas-helper"
 ETC_DIR="$PLUGIN_HOME/etc"
 VAR_DIR="$PLUGIN_HOME/var"
+RUNTIME_DIR="$PLUGIN_HOME/tmp/runtime"
 [ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
 CONFIG_FILE="$ETC_DIR/config.yaml"
 SECRET_FILE="$ETC_DIR/api.secret"
-PID_FILE="$VAR_DIR/mihomo.pid"
+PID_FILE="$RUNTIME_DIR/mihomo.pid"
 INFO_FILE="$PLUGIN_HOME/INFO"
 PORTS_FILE="$ETC_DIR/ports.env"
 MIXED_PORT=$(sed -n 's/^MIXED_PORT=\([0-9][0-9]*\)$/\1/p' "$PORTS_FILE" 2>/dev/null | head -n 1)
@@ -142,10 +143,15 @@ fi
 
 # Serialize other configuration/core mutations against detached update jobs too.
 case "$action" in
+    docker_proxy_*) ;;
+    *) RUNTIME_DIR=$(python3 -B "$SRC_DIR/files/plugin_paths.py" "$PLUGIN_HOME") || json_error "官方缓存目录不可用，请检查存储池"
+       export TMPDIR="$RUNTIME_DIR" ;;
+esac
+case "$action" in
     set_mode|select_proxy|manual_node_import|manual_node_delete|core_update_apply|network_access_set|start|stop|restart|config_save)
         require_post
         mkdir -p "$VAR_DIR"
-        exec 8>"$VAR_DIR/update-operation.lock"
+        exec 8>"$RUNTIME_DIR/update-operation.lock"
         flock -n 8 || json_error "已有更新或配置应用任务正在执行，请等待完成"
         ;;
 esac
@@ -388,11 +394,11 @@ case "$action" in
         [ "$length" -gt 0 ] || json_error "配置不能为空"
         [ "$length" -le 2097152 ] || json_error "配置不能超过 2 MiB"
         mkdir -p "$VAR_DIR"
-        config_tmp="$VAR_DIR/config.yaml.new.$$"
-        test_log="$VAR_DIR/config-test.$$"
+        config_tmp="$RUNTIME_DIR/config.yaml.new.$$"
+        test_log="$RUNTIME_DIR/config-test.$$"
         trap 'rm -f "$config_tmp" "$test_log"' EXIT HUP INT TERM
         dd bs=1 count="$length" of="$config_tmp" 2>/dev/null
-        config_ports_tmp="$VAR_DIR/config.ports.$$"
+        config_ports_tmp="$RUNTIME_DIR/config.ports.$$"
         awk -v port="$MIXED_PORT" 'BEGIN{seen=0} /^[[:space:]]*mixed-port:[[:space:]]*/{print "mixed-port: " port;seen=1;next}{print} END{if(!seen)print "mixed-port: " port}' "$config_tmp" > "$config_ports_tmp"
         mv -f "$config_ports_tmp" "$config_tmp"
         chmod 0600 "$config_tmp"
@@ -401,7 +407,7 @@ case "$action" in
             json_error "$error_text"
         fi
         cp "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak" 2>/dev/null || true
-        mv -f "$config_tmp" "$CONFIG_FILE"
+        python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$config_tmp" "$CONFIG_FILE"
         chmod 0600 "$CONFIG_FILE"
         if ! PLUG_USER="$plugin_user" PLUG_NAME=mihomo \
             PLUG_HOME_DIR="$PLUGIN_HOME" PLUG_SRC_DIR="$SRC_DIR" \
@@ -419,8 +425,8 @@ case "$action" in
         ;;
     logs)
         json_header
-        if [ -f "$VAR_DIR/mihomo.log" ]; then
-            tail -n 200 "$VAR_DIR/mihomo.log" | jq -Rs '{ok:true,log:.}'
+        if [ -f "$RUNTIME_DIR/mihomo.log" ]; then
+            tail -n 200 "$RUNTIME_DIR/mihomo.log" | jq -Rs '{ok:true,log:.}'
         else
             echo '{"ok":true,"log":""}'
         fi

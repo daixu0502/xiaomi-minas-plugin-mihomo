@@ -7,3 +7,18 @@ __pycache__/
 payload/files/mihomo
 /dist/
 /offline/
+# Local verification only; never publish test sources.
+/tests/**
+!/tests/**/
+!/tests/**/*.md
+**/__tests__/**
+!**/__tests__/**/
+!**/__tests__/**/*.md
+
+# Local-only test code; keep Markdown documentation publishable.
+**/test_*.py
+**/*_test.go
+**/*.test.*
+**/*.spec.*
+
+!**/*.md

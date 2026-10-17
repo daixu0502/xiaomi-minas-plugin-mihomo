@@ -9,6 +9,8 @@ plugin_user=$(printf '%s\n' "$SRC_DIR" | sed -n 's#^/nas/pool[^/]*/\(u[0-9][0-9]
 PLUGIN_HOME=${PLUG_HOME_DIR:-/home/$plugin_user/plugin/mihomo}
 ETC_DIR="$PLUGIN_HOME/etc"
 VAR_DIR="$PLUGIN_HOME/var"
+RUNTIME_DIR=$(python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" "$PLUGIN_HOME") || exit 1
+export TMPDIR="$RUNTIME_DIR"
 BIN="$SCRIPT_DIR/mihomo"
 # Runtime updates must never replace files covered by INFO.abstract.
 [ ! -x "$VAR_DIR/core/mihomo" ] || BIN="$VAR_DIR/core/mihomo"
@@ -55,11 +57,11 @@ do_set() {
     case "$access_mode" in local|lan) ;; *) json_error "不支持的访问范围" ;; esac
     [ -s "$CONFIG_FILE" ] || json_error "配置文件不存在"
     mkdir -p "$VAR_DIR"
-    exec 9>"$VAR_DIR/network-access.lock"
+    exec 9>"$RUNTIME_DIR/network-access.lock"
     flock -n 9 || json_error "另一个网络访问设置正在进行"
     umask 077
-    config_tmp="$VAR_DIR/config.network-access.$$"
-    test_log="$VAR_DIR/network-access-test.$$"
+    config_tmp="$RUNTIME_DIR/config.network-access.$$"
+    test_log="$RUNTIME_DIR/network-access-test.$$"
     awk -v mode="$access_mode" '
         BEGIN { seen_allow=0; seen_bind=0 }
         /^allow-lan:[[:space:]]*/ {
@@ -84,7 +86,7 @@ do_set() {
     fi
 
     cp "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak"
-    mv -f "$config_tmp" "$CONFIG_FILE"
+    python3 -B "$PLUGIN_HOME/src/files/plugin_paths.py" --publish "$config_tmp" "$CONFIG_FILE"
     config_tmp=""
     chmod 0600 "$CONFIG_FILE" "$ETC_DIR/config.yaml.bak"
     was_running=false

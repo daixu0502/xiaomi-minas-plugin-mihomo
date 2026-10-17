@@ -346,7 +346,6 @@ def install(payload, plugin, user, plugin_version, backup):
         if plugin not in data['users'][user]: data['users'][user].append(plugin)
         data.setdefault('modules',{})[plugin] = plugin_version
     if plugin == 'mihomo':
-        import re
         text = (HOME/user/'plugin/mihomo/etc/ports.env').read_text()
         match = re.search(r'^MIXED_PORT=([0-9]+)$',text,re.M)
         if not match or not 1024 <= int(match[1]) <= 65535: raise ValueError('Mihomo 端口未配置')
@@ -375,6 +374,17 @@ def install(payload, plugin, user, plugin_version, backup):
                 module.initialize(user)
             state=json.loads((BASE/'users'/user/'state.json').read_text())
             for task in state['tasks']: module.validate_task(task)
+            # Historical output is a display cache, not privileged scheduler state.
+            logs=BASE/'users'/user/'logs'
+            if logs.is_dir():
+                import user_state_io
+                for log in logs.iterdir():
+                    if not re.fullmatch(r'[a-f0-9]{32}\.log',log.name):raise ValueError('未知旧任务日志，未迁移')
+                    validate_tree(log)
+                    value={'text':log.read_text()[:module.MAX_LOG]}
+                    user_state_io.write_state(user,'taskcenter','log-'+log.stem+'.json',value)
+                    log.unlink()
+                logs.rmdir()
         if plugin in runtime.MODULES: install_sudo(user,plugin)
     obsolete = CRON/('dockermanager-'+user)
     if plugin == 'dockermanager' and obsolete.exists(): obsolete.unlink()
@@ -408,6 +418,7 @@ def remove(plugin, user, backup):
         data.get('settings',{}).get(user,{}).pop('mihomo',None)
     if not any(plugin in grants for grants in data['users'].values()):
         data.get('modules',{}).pop(plugin,None)
+        data.get('packages',{}).pop(plugin,None)
         module = BASE/'modules'/plugin
         if module.is_dir():
             validate_tree(module);shutil.rmtree(module)
@@ -421,7 +432,7 @@ def remove(plugin, user, backup):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['install', 'remove'])
+    parser.add_argument('action', choices=['install', 'remove', 'check'])
     parser.add_argument('--plugin', choices=sorted(runtime.DISTRIBUTORS), required=True)
     parser.add_argument('--user', required=True)
     parser.add_argument('--payload', type=Path)
@@ -434,6 +445,9 @@ def main():
 
     with runtime.lock('component.lock', exclusive=True, wait=15), ssh_state_lock(args.plugin):
         check_idle()
+        if args.action == 'check':
+            print(json.dumps({'ok':True,'helperVersion':runtime.VERSION}))
+            return
         if args.action == 'remove':
             runtime.secure_directory(BACKUPS,create=True,mode=0o700)
             backup=Path(tempfile.mkdtemp(prefix='removed-'+args.plugin+'-',dir=str(BACKUPS)))

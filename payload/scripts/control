@@ -4,6 +4,11 @@ CONTROL_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 PLUG_HOME_DIR=${PLUG_HOME_DIR:-$(dirname "$CONTROL_DIR")}
 PLUG_SRC_DIR=${PLUG_SRC_DIR:-$PLUG_HOME_DIR/src}
 RUNNER="$PLUG_SRC_DIR/files/mihomo.sh"
+if [ "$(id -u)" = 0 ]; then
+    plugin_user=$(printf '%s\n' "$PLUG_HOME_DIR" | sed -n 's#^/home/\(u[0-9][0-9]*\)/plugin/mihomo$#\1#p')
+    [ -n "$plugin_user" ] || exit 1
+    exec runuser -u "$plugin_user" -- env PLUG_USER="$plugin_user" PLUG_HOME_DIR="$PLUG_HOME_DIR" PLUG_SRC_DIR="$PLUG_SRC_DIR" "$0" "$@"
+fi
 
 log_info() {
     logger -t plugin.mihomo -p user.info "mihomo.control: $*"
