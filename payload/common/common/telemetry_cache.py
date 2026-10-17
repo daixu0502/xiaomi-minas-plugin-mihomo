@@ -17,6 +17,11 @@ def configure(user):
 
 
 def cached(key, ttl, loader, force=False):
+    # API-v1 callers installed before per-user caches do not call configure().
+    # They must keep working when another plugin upgrades only the shared code.
+    # No guessed user or root-owned fallback cache: just sample live telemetry.
+    if USER is None:
+        return loader()
     name = cache_name(key)
     def previous():
         try:

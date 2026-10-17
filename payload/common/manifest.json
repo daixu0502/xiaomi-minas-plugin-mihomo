@@ -1,12 +1,12 @@
 {
   "apiVersion": 1,
   "layoutVersion": 2,
-  "version": "1.1.2",
+  "version": "1.1.3",
   "plugin": "mihomo",
   "files": {
     "common/component_admin.py": "16fdf820fce4fc9aefb1575df069b383d2f1b3cdfa501e1c5501abee9212c88a",
-    "common/privileged_runtime.py": "42c6dac743d1a60fd59fa739b2616bb625216aeb9da73f940101b0788faaead2",
-    "common/telemetry_cache.py": "c6c2917d6f0a84964c33b2476d180b6dee6701546c611a8c7bc0cc3a823ba3cb",
+    "common/privileged_runtime.py": "db685cb40a88befb7b69246af57796deffd7f5ed4950881668fdd7bd3f9fd3a2",
+    "common/telemetry_cache.py": "8e7c762862af1253a1464ebc41281952a5d7374c889202e3aacaf630af90e80b",
     "common/user_state_io.py": "aeb1b5bd1a09d491c8dd59e8456e9aec93afb8ebc30845213a0d55ea4e53cebf",
     "component_admin.py": "8d4832b4794f552ab2bf0a5d2d17ce44e614d28497f7f54c3efa620856ec9257",
     "minas-helper": "8ed97c29410d8d0eca612b3ed1066cb7798bf8956a85cd073f86b27714c5b4f5",
